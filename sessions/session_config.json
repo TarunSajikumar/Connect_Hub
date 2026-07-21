@@ -1,0 +1,10 @@
+{
+  "rememberMe": false,
+  "whatsapp": {
+    "autoConnect": true
+  },
+  "telegram": {
+    "autoConnect": false,
+    "token": null
+  }
+}

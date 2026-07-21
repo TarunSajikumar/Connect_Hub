@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ContentHub — Multi-Platform Publisher & Media Studio</title>
+  <meta name="description" content="Download, upload, and publish content to WhatsApp & Telegram instantly in original quality."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+
+<!-- Ambient Canvas Background -->
+<div class="bg-canvas" aria-hidden="true">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <!-- Ethereal Shadows SVG Overlay -->
+  <svg style="position: absolute; width: 0; height: 0; pointer-events: none;">
+    <defs>
+      <filter id="ethereal-shadow-filter">
+        <feTurbulence result="undulation" numOctaves="2" baseFrequency="0.001,0.003" seed="0" type="turbulence"/>
+        <feColorMatrix id="ethereal-fe-matrix" in="undulation" type="hueRotate" values="180"/>
+        <feColorMatrix in="dist" result="circulation" type="matrix" values="4 0 0 0 1  4 0 0 0 1  4 0 0 0 1  1 0 0 0 0"/>
+        <feDisplacementMap in="SourceGraphic" in2="circulation" scale="50" result="dist"/>
+        <feDisplacementMap in="dist" in2="undulation" scale="50" result="output"/>
+      </filter>
+    </defs>
+  </svg>
+  <div class="ethereal-shadow-layer">
+    <div class="ethereal-shadow-mask"></div>
+  </div>
+  <div class="ethereal-noise-layer"></div>
+</div>
+
+<!-- Toast Notifications -->
+<div id="toast-container"></div>
+
+<!-- Server Offline Banner -->
+<div class="server-banner" id="server-banner">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  Connecting to ContentHub server at <strong>localhost:4000</strong>…
+</div>
+
+<!-- ====== NAV HEADER ====== -->
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="nav-logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#g1)" stroke-width="2.4" stroke-linecap="round"><defs><linearGradient id="g1" x1="0" y1="0" x2="24" y2="24"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </div>
+    <span class="nav-title">ContentHub</span>
+    <div class="flip-fade-pill">
+      <span class="flip-fade-dot"></span>
+      <span class="flip-fade-badge" id="flip-fade-badge">PUBLISH</span>
+    </div>
+  </div>
+
+  <div class="nav-center">
+    <div class="nav-status" id="nav-status">
+      <span class="conn-dot offline"></span>
+      <span id="nav-status-text">Server offline</span>
+    </div>
+  </div>
+
+  <div class="nav-actions">
+    <button class="nav-sync" id="sync-btn" onclick="syncAnalytics()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      <span>Sync Analytics</span>
+    </button>
+  </div>
+</nav>
+
+<!-- ====== MAIN DASHBOARD STUDIO ====== -->
+<main class="dashboard-studio">
+
+  <!-- ── HERO BANNER SECTION ── -->
+  <section class="hero-banner-section">
+    <div class="hero-content">
+      <div class="hero-eyebrow">
+        <span class="hero-eyebrow-sparkle">✨</span>
+        <span>AI-Powered Multi-Platform Publishing Studio</span>
+      </div>
+      <h1 class="hero-heading">
+        Broadcast Content <span class="gradient-text">Everywhere</span> in Original Quality
+      </h1>
+      <p class="hero-subheading">
+        Fetch 4K/HD media from YouTube &amp; Instagram, schedule automated broadcasts, and publish instantly across all your WhatsApp groups and Telegram channels without API keys.
+      </p>
+
+      <div class="hero-ctas">
+        <button class="hero-btn hero-btn-primary" onclick="document.getElementById('upload-panel').scrollIntoView({behavior:'smooth'})">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Start Publishing
+        </button>
+        <button class="hero-btn hero-btn-secondary" onclick="document.getElementById('downloader-panel').scrollIntoView({behavior:'smooth'})">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download Media Link
+        </button>
+      </div>
+
+      <div class="hero-feature-pills">
+        <div class="feature-pill"><span class="pill-icon">🚀</span> Zero Compression</div>
+        <div class="feature-pill"><span class="pill-icon">📱</span> WhatsApp &amp; Telegram</div>
+        <div class="feature-pill"><span class="pill-icon">📥</span> YouTube &amp; Instagram</div>
+        <div class="feature-pill"><span class="pill-icon">⏰</span> Automated Scheduler</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ROW 1: STUDIO HERO (Downloader Left + Upload Right) ── -->
+  <section class="hero-studio-row">
+
+    <!-- MEDIA DOWNLOADER STUDIO -->
+    <div class="studio-card" id="downloader-panel">
+      <div class="studio-card-header">
+        <div class="card-title-group">
+          <div class="card-title-icon dl-icon-bg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+          <div>
+            <h2 class="panel-title-text">Media Downloader</h2>
+            <span class="panel-subtitle">Fetch high quality videos &amp; reels from link</span>
+          </div>
+        </div>
+        <div class="downloader-platform-tags">
+          <span class="dl-tag dl-tag-yt">▶ YouTube</span>
+          <span class="dl-tag dl-tag-ig">◎ Instagram</span>
+        </div>
+      </div>
+
+      <!-- Missing yt-dlp warning -->
+      <div id="ytdlp-missing-notice" class="ytdlp-notice" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div>
+          <strong>yt-dlp not found</strong>
+          <span>Install with: <code>winget install yt-dlp.yt-dlp</code> — then restart server</span>
+        </div>
+      </div>
+
+      <!-- URL Input Area -->
+      <div class="dl-input-row">
+        <div class="dl-url-wrap">
+          <svg class="dl-url-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          <input
+            type="url"
+            id="dl-url-input"
+            class="dl-url-input"
+            placeholder="Paste YouTube or Instagram link here…"
+            onkeydown="if(event.key==='Enter') startDownload()"
+          />
+        </div>
+        <button class="btn-download" id="dl-btn" onclick="startDownload()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><path d="M5 21h14"/></svg>
+          <span id="dl-btn-text">Download</span>
+        </button>
+      </div>
+
+      <!-- Download Progress -->
+      <div id="dl-progress" class="dl-progress" style="display:none">
+        <div class="dl-progress-bar-track">
+          <div class="dl-progress-bar-fill" id="dl-progress-fill"></div>
+        </div>
+        <span id="dl-progress-text" class="dl-progress-text">Downloading at highest quality…</span>
+      </div>
+
+      <!-- Download Result Preview -->
+      <div id="dl-result" class="dl-result" style="display:none">
+        <div class="dl-result-info">
+          <div class="dl-result-icon" id="dl-result-icon">🎬</div>
+          <div class="dl-result-details">
+            <strong id="dl-result-name"></strong>
+            <span id="dl-result-meta"></span>
+          </div>
+        </div>
+        <div class="dl-result-actions">
+          <a id="dl-save-link" class="btn-dl-save" download>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><path d="M5 21h14"/></svg>
+            Save PC
+          </a>
+          <button class="btn-dl-use" id="dl-use-btn" onclick="useDownloadedFile()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Use in Upload ↓
+          </button>
+        </div>
+      </div>
+
+      <!-- Download Error -->
+      <div id="dl-error" class="dl-error" style="display:none"></div>
+
+      <p class="platform-hint">
+        💡 Merges video &amp; audio in original quality. Auto-deleted after 30 mins.
+      </p>
+    </div>
+
+    <!-- PUBLISH COMMAND CENTER -->
+    <div class="studio-card" id="upload-panel">
+      <div class="studio-card-header">
+        <div class="card-title-group">
+          <div class="card-title-icon ul-icon-bg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div>
+            <h2 class="panel-title-text">Publish Content</h2>
+            <span class="panel-subtitle">Broadcast media to selected WhatsApp &amp; Telegram targets</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- File Dropzone -->
+      <div class="dropzone" id="dropzone"
+           onclick="document.getElementById('file-input').click()"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event)">
+        <div id="dropzone-empty">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          <p>Drop file here or <span class="link-text">click to browse</span></p>
+          <small>Videos • Images • Docs • Up to 500 MB • Original quality</small>
+        </div>
+        <div id="dropzone-preview" style="display:none">
+          <div class="file-preview-row">
+            <span class="file-icon" id="file-icon">📁</span>
+            <div class="file-preview-info">
+              <strong id="file-name-display"></strong>
+              <span id="file-size-display"></span>
+            </div>
+            <button class="btn-clear-file" onclick="clearFile(event)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        <input type="file" id="file-input" style="display:none" accept="image/*,video/*,audio/*,.pdf,.zip,.rar,.mp3,.mp4,.mov,.mkv" onchange="handleFileSelect(event)"/>
+      </div>
+
+      <!-- Caption Box -->
+      <div class="caption-section">
+        <div class="caption-header">
+          <label for="caption">Caption / Broadcast Message</label>
+          <span class="char-count"><span id="char-count">0</span> / 2200</span>
+        </div>
+        <textarea id="caption" class="caption-area" placeholder="Write caption or broadcast text..." maxlength="2200" oninput="document.getElementById('char-count').textContent=this.value.length"></textarea>
+      </div>
+
+      <!-- Targets Summary Bar -->
+      <div class="targets-summary" id="targets-summary">
+        <span class="targets-label">Publishing to:</span>
+        <div class="targets-badges" id="targets-badges">
+          <span class="no-targets-msg">Connect platforms and select groups/channels below</span>
+        </div>
+      </div>
+
+      <!-- Schedule Mode Switcher -->
+      <div class="schedule-mode-section">
+        <div class="schedule-mode-toggle">
+          <button class="mode-btn active" id="mode-now-btn" onclick="setPublishMode('now')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            Publish Now
+          </button>
+          <button class="mode-btn" id="mode-schedule-btn" onclick="setPublishMode('schedule')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Schedule for Later
+          </button>
+        </div>
+
+        <div id="schedule-picker-wrap" class="schedule-picker-wrap" style="display:none">
+          <label class="schedule-label" for="schedule-datetime">Select Date &amp; Time:</label>
+          <input type="datetime-local" id="schedule-datetime" class="schedule-datetime-input" />
+        </div>
+      </div>
+
+      <!-- Publish Action Trigger -->
+      <button class="btn-publish" id="publish-btn" onclick="handlePublishOrSchedule()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        <span id="publish-btn-text">Publish Now — Original Quality</span>
+      </button>
+
+      <!-- Upload Progress Container -->
+      <div class="upload-progress-section" id="upload-progress" style="display:none">
+        <h4 class="progress-heading">Publishing…</h4>
+        <div id="progress-items"></div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ── ROW 1.5: SCHEDULED BROADCASTS QUEUE ── -->
+  <section class="scheduled-row">
+    <div class="studio-card" id="scheduled-queue-panel">
+      <div class="studio-card-header">
+        <div class="card-title-group">
+          <div class="card-title-icon sc-icon-bg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div>
+            <h2 class="panel-title-text">Scheduled Broadcasts Queue</h2>
+            <span class="panel-subtitle">Upcoming automated posts waiting to run</span>
+          </div>
+        </div>
+        <button class="btn-refresh" onclick="fetchScheduledJobs()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Refresh Queue
+        </button>
+      </div>
+
+      <div class="scheduled-jobs-list" id="scheduled-jobs-list">
+        <div class="loading-groups">No upcoming broadcasts scheduled</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ROW 2: PLATFORMS CONNECTIONS & TARGET HUB ── -->
+  <section class="platforms-hub-row">
+
+    <!-- WHATSAPP PLATFORM CARD -->
+    <div class="platform-card" id="wa-card">
+      <div class="platform-card-header">
+        <div class="platform-icon wa-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        </div>
+        <div class="platform-card-info">
+          <h3>WhatsApp Connection</h3>
+          <span class="platform-status-text" id="wa-status-text">Not Connected</span>
+        </div>
+        <span class="status-dot" id="wa-dot"></span>
+      </div>
+
+      <!-- Disconnected state -->
+      <div id="wa-disconnected">
+        <p class="platform-hint">Scan QR code with WhatsApp → Linked Devices → Link a Device. <strong>No API key required.</strong></p>
+
+        <label class="remember-me-toggle">
+          <input type="checkbox" id="remember-me-wa" checked onchange="toggleRememberMe(this.checked)"/>
+          <span class="remember-me-custom"></span>
+          <span class="remember-me-label">🔒 Remember Me (Auto-reconnect until Disconnect/Logout)</span>
+        </label>
+
+        <button class="btn-connect wa-btn" id="wa-connect-btn" onclick="startWhatsApp()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          Show QR Code
+        </button>
+        <div class="qr-container" id="wa-qr-container" style="display:none">
+          <img id="wa-qr-img" src="" alt="WhatsApp QR Code" class="qr-image"/>
+          <p class="qr-hint">Open WhatsApp → <strong>Settings → Linked Devices → Link a Device</strong></p>
+        </div>
+      </div>
+
+      <!-- Connected state -->
+      <div id="wa-connected" style="display:none">
+        <div class="connected-row">
+          <div class="connected-avatar wa-avatar">WA</div>
+          <div>
+            <strong id="wa-phone-display">Connected</strong>
+            <span class="connected-sub" id="wa-group-count">Loading groups...</span>
+          </div>
+          <button class="btn-disconnect" onclick="disconnect('whatsapp')">Disconnect</button>
+        </div>
+
+        <!-- Groups list -->
+        <div class="groups-section">
+          <div class="groups-header">
+            <span>👥 Groups</span>
+            <button class="btn-refresh" onclick="refreshWaGroups()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Refresh
+            </button>
+          </div>
+          <div class="groups-list" id="wa-groups-list">
+            <div class="loading-groups">Loading groups…</div>
+          </div>
+        </div>
+
+        <!-- Channels (Newsletters) -->
+        <div class="groups-section" style="margin-top:.85rem">
+          <div class="groups-header">
+            <span>📢 Channels (Newsletters)</span>
+            <button class="btn-refresh" onclick="refreshWaChannels()">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              Refresh
+            </button>
+          </div>
+          <div class="add-chat-row" style="margin-bottom:.4rem">
+            <input type="text" id="wa-channel-input" class="token-input"
+              placeholder="Paste https://whatsapp.com/channel/... link" style="flex:1; font-size:.75rem"/>
+            <button class="btn-add" onclick="addWaChannel()">+ Add</button>
+          </div>
+          <div class="groups-list" id="wa-channels-list">
+            <div class="loading-groups">No channels found yet — paste your channel link above.</div>
+          </div>
+        </div>
+
+        <!-- Connection History -->
+        <div class="groups-section history-section" style="margin-top:.85rem">
+          <div class="groups-header">
+            <span>📜 Connection History</span>
+            <button class="btn-refresh" style="font-size:.65rem" onclick="clearPlatformHistory('whatsapp')">Clear</button>
+          </div>
+          <div class="groups-list" id="wa-history-list">
+            <div class="loading-groups">No history recorded yet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TELEGRAM PLATFORM CARD -->
+    <div class="platform-card" id="tg-card">
+      <div class="platform-card-header">
+        <div class="platform-icon tg-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="white"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+        </div>
+        <div class="platform-card-info">
+          <h3>Telegram Connection</h3>
+          <span class="platform-status-text" id="tg-status-text">Not Connected</span>
+        </div>
+        <span class="status-dot" id="tg-dot"></span>
+      </div>
+
+      <!-- Disconnected state -->
+      <div id="tg-disconnected">
+        <div class="tg-setup-steps">
+          <div class="setup-step">
+            <span class="step-num">1</span>
+            <div class="step-body">
+              <strong>Open BotFather on Telegram</strong>
+              <a class="step-link" href="https://t.me/BotFather" target="_blank" rel="noopener">&#128073; Tap to open @BotFather</a>
+            </div>
+          </div>
+          <div class="setup-step">
+            <span class="step-num">2</span>
+            <div class="step-body">
+              <strong>Send this command to BotFather</strong>
+              <code class="step-code" onclick="copyCode(this)">/newbot &nbsp; <span style="font-size:.7rem;opacity:.6">(tap to copy)</span></code>
+            </div>
+          </div>
+          <div class="setup-step">
+            <span class="step-num">3</span>
+            <div class="step-body">
+              <strong>Name your bot &amp; copy token</strong>
+            </div>
+          </div>
+        </div>
+
+        <label class="tg-token-label">Bot Token</label>
+        <div class="tg-token-wrap">
+          <input type="text" id="tg-token-input" class="token-input tg-token-big"
+            placeholder="123456789:AAH4DzXabcdefGhIJKlmNoPQ..."
+            autocomplete="off" spellcheck="false"
+            onkeydown="if(event.key==='Enter') connectTelegram()"/>
+          <button class="btn-eye" onclick="toggleTgToken()" title="Show/hide">
+            <svg id="tg-eye-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+        <label class="remember-me-toggle">
+          <input type="checkbox" id="remember-me-tg" checked onchange="toggleRememberMe(this.checked)"/>
+          <span class="remember-me-custom"></span>
+          <span class="remember-me-label">🔒 Remember Me (Auto-reconnect until Disconnect/Logout)</span>
+        </label>
+        <button class="btn-connect tg-btn tg-connect-full" id="tg-connect-btn" onclick="connectTelegram()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Connect Bot
+        </button>
+        <div id="tg-error-msg" class="tg-error"></div>
+      </div>
+
+      <!-- Connected state -->
+      <div id="tg-connected" style="display:none">
+        <div class="connected-row">
+          <div class="connected-avatar tg-avatar">TG</div>
+          <div>
+            <strong id="tg-bot-display">Bot</strong>
+            <span class="connected-sub" id="tg-chat-count">0 chats added</span>
+          </div>
+          <button class="btn-disconnect" onclick="disconnect('telegram')">Disconnect</button>
+        </div>
+
+        <!-- Add chat -->
+        <div class="groups-section">
+          <div class="groups-header">
+            <span>Groups &amp; Channels</span>
+          </div>
+          <div class="add-chat-row">
+            <input type="text" id="tg-chat-input" class="token-input" placeholder="@channelname or -100123456789" style="flex:1"/>
+            <button class="btn-add" onclick="addTelegramChat()">+ Add</button>
+          </div>
+          <p class="platform-hint" style="margin:0.4rem 0 0.6rem">Add bot to your channel/group as Admin first, then enter @username above.</p>
+          <div class="groups-list" id="tg-chats-list"></div>
+        </div>
+
+        <!-- Connection History -->
+        <div class="groups-section history-section" style="margin-top:.85rem">
+          <div class="groups-header">
+            <span>📜 Connection History</span>
+            <button class="btn-refresh" style="font-size:.65rem" onclick="clearPlatformHistory('telegram')">Clear</button>
+          </div>
+          <div class="groups-list" id="tg-history-list">
+            <div class="loading-groups">No history recorded yet</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ── ROW 3: ANALYTICS & AUDIENCE REACH METRICS ── -->
+  <section class="analytics-row">
+    <div class="studio-card" id="analytics-panel">
+      <div class="studio-card-header">
+        <div class="card-title-group">
+          <div class="card-title-icon an-icon-bg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </div>
+          <div>
+            <h2 class="panel-title-text">Analytics &amp; Member Reach</h2>
+            <span class="panel-subtitle">Live member count metrics across connected targets</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metric Cards Grid -->
+      <div class="analytics-grid" id="analytics-grid">
+        <div class="analytics-placeholder">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <p>Connect platforms and select target groups to load audience metrics</p>
+        </div>
+      </div>
+
+      <!-- Telegram chats table -->
+      <div id="tg-chats-analytics" style="display:none; margin-top:1rem">
+        <h3 class="section-sub-title">Telegram Connected Chats</h3>
+        <div class="groups-table" id="tg-chats-table"></div>
+      </div>
+
+      <!-- WhatsApp groups table -->
+      <div id="wa-groups-analytics" style="display:none; margin-top:1rem">
+        <h3 class="section-sub-title">WhatsApp Target Groups &amp; Channels</h3>
+        <div class="groups-table" id="wa-groups-table"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

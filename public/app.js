@@ -1056,7 +1056,7 @@ async function startDownload() {
   } catch (e) {
     clearInterval(pctInterval);
     if (progressEl) progressEl.style.display = 'none';
-    showDlError('Cannot reach server — is ContentHub running?');
+    showDlError(e.message || 'Download failed');
   } finally {
     if (dlBtn) dlBtn.disabled = false;
     if (btnText) btnText.textContent = 'Download';

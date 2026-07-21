@@ -471,7 +471,7 @@ app.post('/api/download', async (req, res) => {
   if (!ytDlpAvailable) {
     return res.status(503).json({
       success: false,
-      error: 'yt-dlp is not installed. Run: winget install yt-dlp.yt-dlp  or place yt-dlp.exe in the app folder.'
+      error: 'yt-dlp engine is initializing on the server. Please try again in a few seconds.'
     });
   }
 
@@ -491,12 +491,11 @@ app.post('/api/download', async (req, res) => {
   const downloadsDir = path.join(__dirname, 'downloads');
   const timestamp = Date.now();
 
-  // yt-dlp args: best quality video+audio merged, mp4 container
+  // yt-dlp args: download highest quality mp4 video
   const outputTemplate = path.join(downloadsDir, `${timestamp}_%(title).80B.%(ext)s`);
   const args = [
     '--no-playlist',
-    '--merge-output-format', 'mp4',
-    '-f', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best',
+    '-f', 'b[ext=mp4]/best[ext=mp4]/bestvideo+bestaudio/best',
     '-o', outputTemplate,
     '--no-warnings',
     '--print', 'after_move:filepath',

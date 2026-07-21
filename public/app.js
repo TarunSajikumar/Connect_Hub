@@ -94,7 +94,8 @@ function initFlipFadeText() {
 
 // ── WebSocket ──────────────────────────────────────────────
 function connectWebSocket() {
-  const wsUrl = `ws://${location.host}`;
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${protocol}//${location.host}`;
   state.ws = new WebSocket(wsUrl);
 
   state.ws.onopen = () => {
@@ -171,15 +172,17 @@ function setServerOnline(online) {
   const text = document.getElementById('nav-status-text');
 
   if (online) {
-    banner.classList.add('hidden');
-    dot.classList.add('online');
-    dot.classList.remove('offline');
-    text.textContent = 'Server online';
+    if (banner) banner.classList.add('hidden');
+    if (dot) { dot.classList.add('online'); dot.classList.remove('offline'); }
+    if (text) text.textContent = 'Server online';
   } else {
-    banner.classList.remove('hidden');
-    dot.classList.remove('online');
-    dot.classList.add('offline');
-    text.textContent = 'Reconnecting…';
+    if (banner) {
+      banner.classList.remove('hidden');
+      const bText = document.getElementById('server-banner-text');
+      if (bText) bText.innerHTML = `Connecting to ContentHub server at <strong>${location.host}</strong>…`;
+    }
+    if (dot) { dot.classList.remove('online'); dot.classList.add('offline'); }
+    if (text) text.textContent = 'Reconnecting…';
   }
 }
 

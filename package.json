@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "bot": "node bot.js"
+    "bot": "node bot.js",
+    "postinstall": "node -e \"if (process.platform === 'linux') { try { require('child_process').execSync('curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ./yt-dlp && chmod +x ./yt-dlp', { stdio: 'inherit' }); } catch(e) {} }\""
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",

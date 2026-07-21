@@ -127,17 +127,42 @@ try {
   ytDlpAvailable = true;
   console.log('  ✅ yt-dlp   — Media downloader ready');
 } catch (e) {
-  const windowsPaths = [
-    path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
-    path.join(process.env.USERPROFILE || '', 'AppData', 'Local', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
-    'C:\\Windows\\System32\\yt-dlp.exe',
-    path.join(__dirname, 'yt-dlp.exe')
-  ];
-  for (const p of windowsPaths) {
-    if (fs.existsSync(p)) {
-      ytDlpCmd = p;
-      ytDlpAvailable = true;
-      break;
+  const localLinuxBin = path.join(__dirname, 'yt-dlp');
+  const localWinBin = path.join(__dirname, 'yt-dlp.exe');
+
+  if (fs.existsSync(localLinuxBin)) {
+    ytDlpCmd = localLinuxBin;
+    ytDlpAvailable = true;
+  } else if (fs.existsSync(localWinBin)) {
+    ytDlpCmd = localWinBin;
+    ytDlpAvailable = true;
+  } else {
+    const windowsPaths = [
+      path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
+      path.join(process.env.USERPROFILE || '', 'AppData', 'Local', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
+      'C:\\Windows\\System32\\yt-dlp.exe'
+    ];
+    for (const p of windowsPaths) {
+      if (fs.existsSync(p)) {
+        ytDlpCmd = p;
+        ytDlpAvailable = true;
+        break;
+      }
+    }
+  }
+
+  // Auto-download yt-dlp executable on Linux cloud hosting if missing
+  if (!ytDlpAvailable && process.platform === 'linux') {
+    try {
+      console.log('  📥 [Setup] Downloading yt-dlp binary for Linux hosting…');
+      execSync(`curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o "${localLinuxBin}" && chmod +x "${localLinuxBin}"`, { stdio: 'ignore' });
+      if (fs.existsSync(localLinuxBin)) {
+        ytDlpCmd = localLinuxBin;
+        ytDlpAvailable = true;
+        console.log('  ✅ yt-dlp   — Downloaded & ready for Linux cloud environment');
+      }
+    } catch (dlErr) {
+      console.error('  ⚠️ [Setup] Could not auto-download yt-dlp binary:', dlErr.message);
     }
   }
 }

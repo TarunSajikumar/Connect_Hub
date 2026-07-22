@@ -1033,7 +1033,69 @@ async function checkDownloaderStatus() {
       const btn = document.getElementById('dl-btn');
       if (btn) btn.disabled = true;
     }
+    updateCookieUI(res.hasCookies, res.cookieFileName);
   } catch (e) { /* server offline */ }
+}
+
+function updateCookieUI(hasCookies, fileName) {
+  const badge = document.getElementById('dl-cookies-badge');
+  const clearBtn = document.getElementById('btn-cookie-clear');
+  if (badge) {
+    if (hasCookies) {
+      badge.className = 'cookie-status-badge active';
+      badge.textContent = `Active (${fileName || 'cookies.txt'})`;
+    } else {
+      badge.className = 'cookie-status-badge none';
+      badge.textContent = 'No Cookies';
+    }
+  }
+  if (clearBtn) {
+    clearBtn.style.display = hasCookies ? 'inline-flex' : 'none';
+  }
+}
+
+function toggleCookieBox() {
+  const box = document.getElementById('dl-cookies-box');
+  if (box) {
+    box.style.display = box.style.display === 'none' ? 'flex' : 'none';
+  }
+}
+
+async function uploadCookieFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('cookieFile', file);
+
+  try {
+    toast('info', '⏳ Uploading cookies.txt…');
+    const res = await fetch('/api/downloader/cookies', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.success) {
+      toast('success', '✅ Cookies file uploaded! Try downloading the link again.');
+      checkDownloaderStatus();
+    } else {
+      toast('error', data.error || 'Failed to upload cookies');
+    }
+  } catch (e) {
+    toast('error', 'Cannot upload cookie file');
+  } finally {
+    event.target.value = '';
+  }
+}
+
+async function clearCookies() {
+  if (!confirm('Remove uploaded cookies.txt file?')) return;
+  try {
+    const res = await api('DELETE', '/api/downloader/cookies');
+    if (res.success) {
+      toast('info', 'Removed cookies file');
+      checkDownloaderStatus();
+    }
+  } catch (e) {
+    toast('error', 'Failed to remove cookies');
+  }
 }
 
 async function startDownload() {

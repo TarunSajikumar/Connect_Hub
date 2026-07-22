@@ -961,3 +961,45 @@ body {
     display: none;
   }
 }
+
+/* ── Downloader Cookie Management ── */
+.dl-cookies-section {
+  display: flex; flex-direction: column; gap: .5rem;
+  background: rgba(255,255,255,0.02); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: .65rem .9rem; margin-top: .4rem;
+  transition: var(--transition);
+}
+.dl-cookies-header {
+  display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;
+}
+.dl-cookies-title {
+  font-size: .8rem; font-weight: 600; color: var(--text2); display: flex; align-items: center; gap: .4rem;
+  transition: var(--transition);
+}
+.dl-cookies-header:hover .dl-cookies-title { color: var(--text1); }
+.cookie-status-badge {
+  font-size: .68rem; font-weight: 700; padding: .2rem .55rem; border-radius: 100px; transition: var(--transition);
+}
+.cookie-status-badge.active { background: rgba(52,211,153,.15); border: 1px solid rgba(52,211,153,.35); color: var(--green); }
+.cookie-status-badge.none { background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text3); }
+
+.dl-cookies-box {
+  display: flex; flex-direction: column; gap: .6rem; margin-top: .4rem; padding-top: .5rem; border-top: 1px solid var(--border);
+  animation: fadeIn .2s ease;
+}
+.cookie-hint { font-size: .75rem; color: var(--text2); line-height: 1.4; }
+.cookie-hint code { background: rgba(255,255,255,0.08); padding: 1px 4px; border-radius: 3px; color: #c4b5fd; }
+.cookie-upload-row { display: flex; gap: .5rem; align-items: center; }
+.btn-cookie-upload {
+  display: inline-flex; align-items: center; gap: .4rem; padding: .4rem .8rem;
+  background: rgba(167,139,250,.12); border: 1px solid rgba(167,139,250,.3); border-radius: 6px;
+  color: #c4b5fd; font-size: .75rem; font-weight: 600; cursor: pointer; transition: var(--transition);
+}
+.btn-cookie-upload:hover { background: rgba(167,139,250,.22); color: #fff; }
+.btn-cookie-clear {
+  display: inline-flex; align-items: center; gap: .4rem; padding: .4rem .8rem;
+  background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.3); border-radius: 6px;
+  color: var(--red); font-size: .75rem; font-weight: 600; cursor: pointer; transition: var(--transition);
+}
+.btn-cookie-clear:hover { background: var(--red); color: #fff; }
+

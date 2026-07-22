@@ -119,6 +119,19 @@ if (process.platform === 'win32') {
   }
 }
 
+// ─── Cookie Helper for Media Downloader ──────────────────────
+function getCookieFilePath() {
+  const possiblePaths = [
+    path.join(__dirname, 'sessions', 'cookies.txt'),
+    path.join(__dirname, 'sessions', 'instagram', 'cookies.txt'),
+    path.join(__dirname, 'cookies.txt')
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p) && fs.statSync(p).size > 0) return p;
+  }
+  return null;
+}
+
 // ─── yt-dlp availability check ──────────────────────────────
 let ytDlpAvailable = false;
 let ytDlpCmd = 'yt-dlp';
@@ -484,7 +497,47 @@ app.get('/api/analytics', async (req, res) => {
 
 // ─── API: Media Downloader ────────────────────────────────────
 app.get('/api/downloader/status', (req, res) => {
-  res.json({ success: true, available: ytDlpAvailable });
+  const cookiePath = getCookieFilePath();
+  res.json({
+    success: true,
+    available: ytDlpAvailable,
+    hasCookies: !!cookiePath,
+    cookieFileName: cookiePath ? path.basename(cookiePath) : null
+  });
+});
+
+app.get('/api/downloader/cookies', (req, res) => {
+  const cookiePath = getCookieFilePath();
+  res.json({
+    success: true,
+    hasCookies: !!cookiePath,
+    cookieFileName: cookiePath ? path.basename(cookiePath) : null
+  });
+});
+
+app.post('/api/downloader/cookies', upload.single('cookieFile'), (req, res) => {
+  try {
+    const targetPath = path.join(__dirname, 'sessions', 'cookies.txt');
+    if (req.file) {
+      fs.copyFileSync(req.file.path, targetPath);
+      try { fs.unlinkSync(req.file.path); } catch (e) {}
+      return res.json({ success: true, message: 'Cookies file uploaded successfully' });
+    } else if (req.body && req.body.cookiesText) {
+      fs.writeFileSync(targetPath, req.body.cookiesText.trim(), 'utf8');
+      return res.json({ success: true, message: 'Cookies text saved successfully' });
+    }
+    return res.status(400).json({ success: false, error: 'No cookie file or text provided' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/downloader/cookies', (req, res) => {
+  const cookiePath = getCookieFilePath();
+  if (cookiePath) {
+    try { fs.unlinkSync(cookiePath); } catch (e) {}
+  }
+  res.json({ success: true, message: 'Cookies removed successfully' });
 });
 
 app.post('/api/download', async (req, res) => {
@@ -510,17 +563,30 @@ app.post('/api/download', async (req, res) => {
 
   const downloadsDir = path.join(__dirname, 'downloads');
   const timestamp = Date.now();
-
-  // yt-dlp args: download highest quality mp4 video
   const outputTemplate = path.join(downloadsDir, `${timestamp}_%(title).80B.%(ext)s`);
+
+  // Build robust yt-dlp execution args
   const args = [
     '--no-playlist',
     '-f', 'b[ext=mp4]/best[ext=mp4]/bestvideo+bestaudio/best',
     '-o', outputTemplate,
     '--no-warnings',
-    '--print', 'after_move:filepath',
-    cleanUrl
+    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    '--add-header', 'Accept-Language: en-US,en;q=0.9',
+    '--referer', isInstagram ? 'https://www.instagram.com/' : 'https://www.youtube.com/'
   ];
+
+  if (isInstagram) {
+    args.push('--extractor-args', 'instagram:api_example=1');
+  }
+
+  const cookiePath = getCookieFilePath();
+  if (cookiePath) {
+    args.push('--cookies', cookiePath);
+    console.log(`[Download] Using cookie file: ${cookiePath}`);
+  }
+
+  args.push('--print', 'after_move:filepath', cleanUrl);
 
   console.log(`[Download] Starting: ${cleanUrl}`);
 
@@ -561,8 +627,16 @@ app.post('/api/download', async (req, res) => {
             }
           }
         } else {
-          const errMsg = stderr.replace(/\x1b\[[0-9;]*m/g, '').trim().split('\n').pop() || 'Download failed';
-          reject(new Error(errMsg));
+          const fullErr = stderr.replace(/\x1b\[[0-9;]*m/g, '').trim();
+          if (/HTTP Error 429|Too Many Requests|empty media response|login-in|login required/i.test(fullErr)) {
+            const advice = isInstagram
+              ? '[Instagram] Rate limit or login protection detected (HTTP Error 429). Upload an Instagram cookies.txt file under Downloader Settings or try again shortly.'
+              : 'Platform rate limit encountered (HTTP Error 429). Upload a cookies.txt file or try again shortly.';
+            reject(new Error(advice));
+          } else {
+            const lastLine = fullErr.split('\n').pop() || 'Download failed';
+            reject(new Error(lastLine));
+          }
         }
       });
 

@@ -193,6 +193,26 @@
       <p class="platform-hint">
         💡 Merges video &amp; audio in original quality. Auto-deleted after 30 mins.
       </p>
+
+      <!-- Instagram Cookies / Rate-Limit Controls -->
+      <div class="dl-cookies-section">
+        <div class="dl-cookies-header" onclick="toggleCookieBox()">
+          <span class="dl-cookies-title">🍪 Instagram Cookies / Anti-429 Bypass</span>
+          <span id="dl-cookies-badge" class="cookie-status-badge none">No Cookies</span>
+        </div>
+        <div id="dl-cookies-box" class="dl-cookies-box" style="display:none">
+          <p class="cookie-hint">If Instagram blocks downloads with <strong>HTTP 429</strong>, upload your browser's <code>cookies.txt</code> file (exported via Chrome/Edge extension):</p>
+          <div class="cookie-upload-row">
+            <input type="file" id="cookie-file-input" accept=".txt" style="display:none" onchange="uploadCookieFile(event)"/>
+            <button class="btn-cookie-upload" onclick="document.getElementById('cookie-file-input').click()">
+              📁 Upload cookies.txt
+            </button>
+            <button class="btn-cookie-clear" id="btn-cookie-clear" onclick="clearCookies()" style="display:none">
+              🗑️ Remove
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- PUBLISH COMMAND CENTER -->

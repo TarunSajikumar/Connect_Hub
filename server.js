@@ -48,6 +48,7 @@ import TelegramModule from './modules/telegram.js';
 import HistoryManager from './modules/history.js';
 import SchedulerModule from './modules/scheduler.js';
 import SessionManager from './modules/session_manager.js';
+import InstagramDownloader from './modules/instagram_downloader.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -672,7 +673,32 @@ app.post('/api/download', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[Download] Error:', err.message);
+    console.warn(`[Download] Primary yt-dlp attempt notice: ${err.message}`);
+
+    // Automatic zero-cookie InstagramDownloader fallback engine
+    if (isInstagram) {
+      try {
+        console.log(`[Download] Launching zero-cookie InstagramDownloader engine for: ${cleanUrl}`);
+        const result = await InstagramDownloader.downloadReel(cleanUrl, downloadsDir);
+
+        // Auto-cleanup after 30 minutes
+        setTimeout(() => {
+          try { fs.unlinkSync(result.filePath); } catch (e) {}
+        }, 30 * 60 * 1000);
+
+        return res.json({
+          success: true,
+          filename: result.filename,
+          size: result.size,
+          mimeType: result.mimeType,
+          platform: 'instagram'
+        });
+      } catch (fallbackErr) {
+        console.error('[Download] Zero-cookie fallback engine error:', fallbackErr.message);
+        return res.status(500).json({ success: false, error: fallbackErr.message });
+      }
+    }
+
     res.status(500).json({ success: false, error: err.message });
   }
 });

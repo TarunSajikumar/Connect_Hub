@@ -749,6 +749,7 @@ body {
 
   .dashboard-studio {
     padding: 1rem 1.25rem 2rem 1.25rem;
+    width: 100%;
   }
 
   .hero-studio-row,
@@ -764,15 +765,29 @@ body {
 
 /* Mobile Devices (<= 768px) */
 @media (max-width: 768px) {
+  html, body {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  #toast-container {
+    bottom: 1rem;
+    left: 1rem;
+    right: 1rem;
+    max-width: calc(100% - 2rem);
+    margin: 0 auto;
+  }
+
   .nav {
-    top: 0.5rem;
-    height: 54px;
+    top: 0.4rem;
+    height: 52px;
     width: calc(100% - 1rem);
-    margin: 0.5rem auto 0.25rem auto;
+    margin: 0.4rem auto 0.25rem auto;
     padding: 0 0.85rem;
   }
   .nav-title {
-    font-size: 1.05rem;
+    font-size: 1rem;
   }
   .flip-fade-pill {
     display: none; /* Hide 3D badge on small mobile to prevent text crowding */
@@ -790,14 +805,14 @@ body {
   }
 
   .hero-banner-section {
-    padding: 2.2rem 1.1rem;
+    padding: 1.8rem 1rem;
     border-radius: 16px;
   }
   .hero-heading {
-    font-size: 1.85rem;
+    font-size: 1.65rem;
   }
   .hero-subheading {
-    font-size: .88rem;
+    font-size: .86rem;
     line-height: 1.5;
   }
   .hero-ctas {
@@ -819,9 +834,11 @@ body {
     padding: .25rem .65rem;
   }
 
-  .studio-card {
-    padding: 1.1rem;
+  .studio-card,
+  .platform-card {
+    padding: 1rem;
     border-radius: 16px;
+    width: 100%;
   }
   .panel-title-text {
     font-size: 1.05rem;
@@ -851,68 +868,96 @@ body {
   }
 
   .scheduled-job-card {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
     gap: .75rem;
+    padding: .75rem .85rem;
+  }
+  .sched-job-info {
+    flex: 1;
+    min-width: 0;
   }
   .btn-cancel-job {
-    width: 100%;
+    width: auto;
+    flex-shrink: 0;
+    padding: .35rem .65rem;
     text-align: center;
   }
 
+  /* Keep Group & History Items Clean Row Layout on Mobile */
+  .group-item,
   .history-item {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
     gap: .5rem;
+    padding: .6rem .75rem;
   }
-  .history-actions {
-    justify-content: flex-end;
-    width: 100%;
-  }
-
-  .tg-token-wrap {
-    flex-direction: column;
-    gap: .5rem;
-  }
-  .btn-eye {
-    width: 100%;
-    justify-content: center;
+  .group-name {
+    font-size: .8rem;
   }
 
   .add-chat-row {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    gap: .45rem;
   }
   .btn-add {
-    width: 100%;
+    width: auto;
+    flex-shrink: 0;
   }
 
   .connected-row {
-    flex-direction: column;
-    align-items: stretch;
-    text-align: center;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    gap: .75rem;
+    padding: .75rem;
   }
   .connected-avatar {
-    margin: 0 auto;
+    margin: 0;
   }
   .btn-disconnect {
-    margin-left: 0;
-    width: 100%;
+    margin-left: auto;
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  .tg-token-wrap {
+    flex-direction: row;
+    gap: .35rem;
+  }
+  .btn-eye {
+    width: auto;
+  }
+
+  .caption-area {
+    height: 75px;
+    font-size: .85rem;
+  }
+
+  .btn-publish {
+    height: 46px;
+    font-size: .9rem;
   }
 }
 
 /* Small Mobile Screens (<= 480px) */
 @media (max-width: 480px) {
   .dashboard-studio {
-    padding: .75rem .5rem 1.5rem .5rem;
+    padding: .5rem .35rem 1.5rem .35rem;
   }
   .analytics-grid {
     grid-template-columns: 1fr;
   }
   .card-title-group {
-    gap: .6rem;
+    gap: .5rem;
   }
   .card-title-icon {
     width: 34px; height: 34px;
+  }
+  .group-count {
+    display: none;
   }
 }

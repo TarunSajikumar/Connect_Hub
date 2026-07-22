@@ -592,11 +592,16 @@ function setFile(file) {
   document.getElementById('file-icon').textContent = getFileIcon(file.type);
 }
 function clearFile(e) {
-  e.stopPropagation();
+  if (e && typeof e.stopPropagation === 'function') {
+    e.stopPropagation();
+  }
   state.selectedFile = null;
-  document.getElementById('file-input').value = '';
-  document.getElementById('dropzone-empty').style.display = '';
-  document.getElementById('dropzone-preview').style.display = 'none';
+  const fileInput = document.getElementById('file-input');
+  if (fileInput) fileInput.value = '';
+  const empty = document.getElementById('dropzone-empty');
+  const preview = document.getElementById('dropzone-preview');
+  if (empty) empty.style.display = '';
+  if (preview) preview.style.display = 'none';
 }
 
 // ── Target Selection ───────────────────────────────────────
@@ -984,16 +989,35 @@ function platformLabel(p) {
   return { whatsapp:'📱 WhatsApp', telegram:'✈️ Telegram' }[p] || p;
 }
 
-let toastTimer = {};
+let lastToastTime = 0;
+let lastToastMsg = '';
+
 function toast(type, message) {
   const container = document.getElementById('toast-container');
-  const id = Date.now();
+  if (!container) return;
+
+  const now = Date.now();
+  if (message === lastToastMsg && (now - lastToastTime) < 1500) {
+    return;
+  }
+  lastToastTime = now;
+  lastToastMsg = message;
+
   const el = document.createElement('div');
   el.className = `toast ${type}`;
   const icons = { success:'✅', error:'❌', info:'ℹ️', warning:'⚠️' };
   el.innerHTML = `<span>${icons[type]||''}</span><span>${message}</span>`;
   container.appendChild(el);
-  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 5000);
+
+  while (container.children.length > 3) {
+    container.removeChild(container.firstChild);
+  }
+
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity .3s';
+    setTimeout(() => el.remove(), 300);
+  }, 4000);
 }
 
 // ── Media Downloader ───────────────────────────────────────
@@ -1323,15 +1347,18 @@ async function scheduleContent() {
     if (data.success) {
       toast('success', `⏰ Broadcast scheduled for ${new Date(scheduledTime).toLocaleString()}`);
       clearFile();
-      document.getElementById('caption').value = '';
-      document.getElementById('char-count').textContent = '0';
+      const capInput = document.getElementById('caption');
+      if (capInput) capInput.value = '';
+      const cc = document.getElementById('char-count');
+      if (cc) cc.textContent = '0';
       setPublishMode('now');
       fetchScheduledJobs();
     } else {
       toast('error', data.error || 'Scheduling failed');
     }
   } catch (e) {
-    toast('error', 'Failed to schedule broadcast. Server error.');
+    console.error('[Schedule Exception]', e);
+    toast('error', e.message || 'Failed to schedule broadcast.');
   } finally {
     btn.disabled = false;
   }

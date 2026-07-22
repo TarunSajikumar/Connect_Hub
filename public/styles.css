@@ -1067,15 +1067,16 @@ body {
   transition: var(--transition);
 }
 .dl-cookies-header {
-  display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none;
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; cursor: pointer; user-select: none;
 }
 .dl-cookies-title {
   font-size: .8rem; font-weight: 600; color: var(--text2); display: flex; align-items: center; gap: .4rem;
-  transition: var(--transition);
+  transition: var(--transition); flex: 1 1 200px; min-width: 0;
 }
 .dl-cookies-header:hover .dl-cookies-title { color: var(--text1); }
 .cookie-status-badge {
   font-size: .68rem; font-weight: 700; padding: .2rem .55rem; border-radius: 100px; transition: var(--transition);
+  flex-shrink: 0; white-space: nowrap;
 }
 .cookie-status-badge.active { background: rgba(52,211,153,.15); border: 1px solid rgba(52,211,153,.35); color: var(--green); }
 .cookie-status-badge.none { background: rgba(255,255,255,.05); border: 1px solid var(--border); color: var(--text3); }

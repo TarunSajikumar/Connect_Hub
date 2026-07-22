@@ -24,6 +24,9 @@ export default class SessionManager {
         const data = fs.readFileSync(this.configFile, 'utf8');
         const parsed = JSON.parse(data);
         this.config = { ...this.config, ...parsed };
+        if (typeof this.config.rememberMe !== 'boolean') {
+          this.config.rememberMe = true;
+        }
       }
     } catch (e) {
       this.saveConfig();
@@ -46,7 +49,7 @@ export default class SessionManager {
   }
 
   setRememberMe(remember) {
-    this.config.rememberMe = !!remember;
+    this.config.rememberMe = remember !== false;
     this.saveConfig();
   }
 

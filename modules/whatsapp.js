@@ -24,10 +24,12 @@ export default class WhatsAppModule {
     this.groupsFile = path.join(this.sessionsDir, 'saved_groups.json');
     this.sock = null;
     this.connected = false;
+    this.connecting = false;
+    this.reconnecting = false;
+    this.wasEverOpen = false;
     this.phone = null;
     this.groups = [];
     this.channels = [];
-    this.reconnecting = false;
     this.processingChannels = new Set();
     this.newsletterCheckDone = false;
     this.loadSavedData();
@@ -83,6 +85,7 @@ export default class WhatsAppModule {
   getStatus() {
     return {
       connected: this.connected,
+      connecting: this.connecting || this.reconnecting,
       phone: this.phone,
       groupCount: this.groups.length,
       channelCount: this.channels.length,
@@ -92,100 +95,139 @@ export default class WhatsAppModule {
   }
 
   async connect() {
-    if (this.reconnecting) return;
+    if (this.connected && this.sock) return;
+    if (this.connecting || this.reconnecting) return;
+
+    this.connecting = true;
     if (!fs.existsSync(this.sessionsDir)) {
       fs.mkdirSync(this.sessionsDir, { recursive: true });
     }
 
-    const { state, saveCreds } = await useMultiFileAuthState(this.sessionsDir);
-    const { version } = await fetchLatestBaileysVersion();
+    if (this.sock) {
+      try {
+        this.sock.ev.removeAllListeners();
+        this.sock.end(undefined);
+      } catch (e) {}
+      this.sock = null;
+    }
 
-    const sock = makeWASocket({
-      version,
-      auth: state,
-      logger,
-      printQRInTerminal: false,
-      browser: ['ContentHub', 'Chrome', '3.0'],
-      markOnlineOnConnect: false,
-      syncFullHistory: true
-    });
+    try {
+      const { state, saveCreds } = await useMultiFileAuthState(this.sessionsDir);
+      const { version } = await fetchLatestBaileysVersion();
 
-    this.sock = sock;
-    sock.ev.on('creds.update', saveCreds);
+      const sock = makeWASocket({
+        version,
+        auth: state,
+        logger,
+        printQRInTerminal: false,
+        browser: ['ContentHub', 'Chrome', '3.0'],
+        markOnlineOnConnect: false,
+        syncFullHistory: true
+      });
 
-    // ── Auto-detect Channels from chat sync ─────────────────
-    sock.ev.on('chats.set', ({ chats }) => {
-      // Look for newsletter chats
-      const newsletters = chats.filter(c => c.id && c.id.endsWith('@newsletter'));
-      if (newsletters.length > 0) {
-        console.log(`[WA] Auto-detected ${newsletters.length} channel(s) from sync`);
-        for (const chat of newsletters) {
-          this.addChannelFromChat(chat);
-        }
-      }
-    });
-
-    // Listen for new chats (including newsletters)
-    sock.ev.on('chats.upsert', (chats) => {
-      const newsletters = chats.filter(c => c.id && c.id.endsWith('@newsletter'));
-      if (newsletters.length > 0) {
-        console.log(`[WA] Detected ${newsletters.length} new channel(s)`);
-        for (const chat of newsletters) {
-          this.addChannelFromChat(chat);
-        }
-      }
-    });
-
-    sock.ev.on('connection.update', async (update) => {
-      const { connection, lastDisconnect, qr } = update;
-
-      if (qr) {
+      this.sock = sock;
+      sock.ev.on('creds.update', async (creds) => {
         try {
-          const qrDataUrl = await QRCode.toDataURL(qr, {
-            width: 300, margin: 2,
-            color: { dark: '#000000', light: '#FFFFFF' }
-          });
-          this.broadcast({ type: 'wa_qr', qr: qrDataUrl });
+          await saveCreds(creds);
         } catch (e) {
-          console.error('[WA] QR error:', e.message);
+          console.error('[WA] Save creds error:', e.message);
         }
-      }
+      });
 
-      if (connection === 'close') {
-        this.connected = false;
-        this.phone = null;
-        const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const loggedOut = statusCode === DisconnectReason.loggedOut;
-        this.broadcast({ type: 'wa_disconnected', reason: loggedOut ? 'logged_out' : 'closed' });
-        if (loggedOut) {
+      // ── Auto-detect Channels from chat sync ─────────────────
+      sock.ev.on('chats.set', ({ chats }) => {
+        // Look for newsletter chats
+        const newsletters = chats.filter(c => c.id && c.id.endsWith('@newsletter'));
+        if (newsletters.length > 0) {
+          console.log(`[WA] Auto-detected ${newsletters.length} channel(s) from sync`);
+          for (const chat of newsletters) {
+            this.addChannelFromChat(chat);
+          }
+        }
+      });
+
+      // Listen for new chats (including newsletters)
+      sock.ev.on('chats.upsert', (chats) => {
+        const newsletters = chats.filter(c => c.id && c.id.endsWith('@newsletter'));
+        if (newsletters.length > 0) {
+          console.log(`[WA] Detected ${newsletters.length} new channel(s)`);
+          for (const chat of newsletters) {
+            this.addChannelFromChat(chat);
+          }
+        }
+      });
+
+      sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
           try {
-            const files = fs.readdirSync(this.sessionsDir);
-            for (const f of files) {
-              if (f !== 'saved_channels.json' && f !== 'saved_groups.json') {
-                fs.rmSync(path.join(this.sessionsDir, f), { recursive: true, force: true });
-              }
-            }
-          } catch (e) {}
-        } else {
-          this.reconnecting = true;
-          setTimeout(() => { this.reconnecting = false; this.connect(); }, 5000);
+            const qrDataUrl = await QRCode.toDataURL(qr, {
+              width: 300, margin: 2,
+              color: { dark: '#000000', light: '#FFFFFF' }
+            });
+            this.broadcast({ type: 'wa_qr', qr: qrDataUrl });
+          } catch (e) {
+            console.error('[WA] QR error:', e.message);
+          }
         }
-      }
 
-      if (connection === 'open') {
-        this.connected = true;
-        const user = sock.user;
-        this.phone = user?.id ? user.id.split(':')[0].split('@')[0] : 'Unknown';
-        this.newsletterCheckDone = false;
-        this.broadcast({ type: 'wa_connected', phone: this.phone });
-        
-        // Load groups and channels after connection
-        setTimeout(async () => {
-          await this.loadGroups();
-          await this.discoverChannels();
-        }, 3000);
-      }
-    });
+        if (connection === 'close') {
+          this.connected = false;
+          this.connecting = false;
+          this.phone = null;
+
+          const statusCode = lastDisconnect?.error?.output?.statusCode;
+          console.log(`[WA] Connection closed. Status: ${statusCode || 'unknown'}, Error: ${lastDisconnect?.error?.message || 'closed'}`);
+
+          this.broadcast({ type: 'wa_disconnected', reason: 'closed' });
+
+          const credsExists = fs.existsSync(path.join(this.sessionsDir, 'creds.json'));
+          const shouldReconnect = credsExists && (
+            statusCode === DisconnectReason.restartRequired ||
+            statusCode === DisconnectReason.connectionClosed ||
+            statusCode === DisconnectReason.connectionLost ||
+            statusCode === DisconnectReason.timedOut ||
+            statusCode === 515 ||
+            !statusCode ||
+            this.wasEverOpen
+          );
+
+          if (shouldReconnect && !this.reconnecting) {
+            this.reconnecting = true;
+            const delay = (statusCode === DisconnectReason.restartRequired || statusCode === 515) ? 1500 : 4000;
+            console.log(`[WA] Session preserved on disk. Reconnecting in ${delay}ms…`);
+            setTimeout(() => {
+              this.reconnecting = false;
+              this.connect();
+            }, delay);
+          }
+        }
+
+        if (connection === 'open') {
+          this.connected = true;
+          this.connecting = false;
+          this.reconnecting = false;
+          this.wasEverOpen = true;
+
+          const user = sock.user;
+          this.phone = user?.id ? user.id.split(':')[0].split('@')[0] : 'Unknown';
+          this.newsletterCheckDone = false;
+          console.log(`[WA] Connected successfully to WhatsApp (+${this.phone})`);
+          this.broadcast({ type: 'wa_connected', phone: this.phone });
+          
+          // Load groups and channels after connection
+          setTimeout(async () => {
+            await this.loadGroups();
+            await this.discoverChannels();
+          }, 3000);
+        }
+      });
+    } catch (err) {
+      this.connecting = false;
+      this.connected = false;
+      console.error('[WA] Connection error:', err.message);
+    }
   }
 
   addChannelFromChat(chat) {

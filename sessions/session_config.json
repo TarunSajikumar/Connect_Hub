@@ -1,5 +1,5 @@
 {
-  "rememberMe": false,
+  "rememberMe": true,
   "whatsapp": {
     "autoConnect": true
   },

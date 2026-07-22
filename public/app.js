@@ -218,6 +218,14 @@ function updateWaStatus(wa) {
     document.getElementById('wa-phone-display').textContent = '+' + wa.phone;
     document.getElementById('wa-group-count').textContent =
       `${wa.groupCount || 0} groups · ${wa.channelCount || 0} channels · ${formatNum((wa.totalMembers||0)+(wa.totalSubscribers||0))} total`;
+  } else if (wa.connecting) {
+    statusText.textContent = 'Connecting…';
+    statusText.classList.remove('connected');
+    dot.classList.remove('on');
+    card.classList.remove('connected');
+    state.platforms.whatsapp.connected = false;
+    show('wa-disconnected');
+    hide('wa-connected');
   } else {
     statusText.textContent = 'Not Connected';
     statusText.classList.remove('connected');
@@ -234,11 +242,19 @@ async function startWhatsApp() {
   const btn = document.getElementById('wa-connect-btn');
   btn.disabled = true;
   btn.textContent = 'Starting…';
+  const waCb = document.getElementById('remember-me-wa');
+  const rememberMe = waCb ? waCb.checked : true;
   try {
-    const res = await api('POST', '/api/connect/whatsapp');
+    const res = await api('POST', '/api/connect/whatsapp', { rememberMe });
     if (res.success) {
-      toast('info', '📱 WhatsApp started — QR code will appear below');
-      show('wa-qr-container');
+      if (res.connected) {
+        toast('success', '✅ WhatsApp is already connected!');
+      } else if (res.hasCreds) {
+        toast('info', '📱 Auto-reconnecting saved session…');
+      } else {
+        toast('info', '📱 WhatsApp started — QR code will appear below');
+        show('wa-qr-container');
+      }
     } else {
       toast('error', res.error || 'Failed to start WhatsApp');
     }

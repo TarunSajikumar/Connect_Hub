@@ -208,7 +208,8 @@ const sessionManager = new SessionManager(path.join(__dirname, 'sessions'));
   const cfg = sessionManager.getConfig();
   if (cfg.rememberMe !== false) {
     // 1. WhatsApp Auto-Reconnect
-    if (cfg.whatsapp?.autoConnect !== false && fs.existsSync(path.join(__dirname, 'sessions', 'whatsapp'))) {
+    const waCreds = path.join(__dirname, 'sessions', 'whatsapp', 'creds.json');
+    if (cfg.whatsapp?.autoConnect !== false && fs.existsSync(waCreds)) {
       try {
         console.log('  🔒 [Remember Me] Auto-reconnecting WhatsApp session…');
         await wa.connect();
@@ -245,6 +246,11 @@ function broadcastStatus() {
 
 // ─── API: Status & Session Config ────────────────────────────
 app.get('/api/status', (req, res) => {
+  const cfg = sessionManager.getConfig();
+  const waCreds = path.join(__dirname, 'sessions', 'whatsapp', 'creds.json');
+  if (fs.existsSync(waCreds) && cfg.rememberMe !== false && cfg.whatsapp?.autoConnect !== false && !wa.connected && !wa.connecting && !wa.reconnecting) {
+    wa.connect().catch(err => console.error('[WA] Status trigger auto-connect error:', err.message));
+  }
   res.json({ success: true, data: getStatus() });
 });
 
@@ -265,11 +271,23 @@ app.post('/api/connect/whatsapp', async (req, res) => {
   const { rememberMe } = req.body || {};
   if (typeof rememberMe === 'boolean') {
     sessionManager.setRememberMe(rememberMe);
+  } else {
+    sessionManager.setRememberMe(true);
   }
   sessionManager.setWhatsappAutoConnect(true);
+
+  if (wa.connected) {
+    return res.json({ success: true, message: 'WhatsApp is already connected.', connected: true });
+  }
+
   try {
     await wa.connect();
-    res.json({ success: true, message: 'WhatsApp started — scan the QR code.' });
+    const hasCreds = fs.existsSync(path.join(__dirname, 'sessions', 'whatsapp', 'creds.json'));
+    res.json({
+      success: true,
+      message: hasCreds ? 'Reconnecting saved session…' : 'WhatsApp started — scan the QR code.',
+      hasCreds
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

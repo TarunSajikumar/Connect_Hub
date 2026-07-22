@@ -1300,16 +1300,16 @@ function renderHistory(platform) {
     return `
       <div class="group-item history-item" style="border-color: rgba(255,255,255,0.06)">
         <div class="group-check${isCurrentlyActive ? ' selected' : ''}" style="${isCurrentlyActive ? 'background:var(--purple);border-color:var(--purple);' : ''}"></div>
-        <div style="flex:1; min-width:0; display:flex; flex-direction:column; gap:1px">
+        <div class="history-item-details">
           <span class="group-name">${esc(item.name)}</span>
-          <span style="font-size:.68rem; color:var(--text3)">${formatNum(item.memberCount||0)} members</span>
+          <span style="font-size:.68rem; color:var(--text3); white-space:nowrap">${formatNum(item.memberCount||0)} members</span>
         </div>
         <span class="group-type ${typeClass}">${typeLabel}</span>
-        <button class="btn-add" style="padding:.2rem .5rem; font-size:.68rem"
+        <button class="btn-add" style="padding:.25rem .65rem; font-size:.72rem; flex-shrink:0; white-space:nowrap;"
           onclick="reconnectFromHistory(event, '${platform}', '${esc(item.id)}', '${esc(item.name)}')">
           ⚡ ${isCurrentlyActive ? 'Selected' : 'Re-select'}
         </button>
-        <button class="btn-disconnect" style="padding:.2rem .4rem; font-size:.65rem"
+        <button class="btn-disconnect" style="padding:.25rem .45rem; font-size:.65rem; flex-shrink:0; white-space:nowrap;"
           onclick="removeFromHistory(event, '${platform}', '${esc(item.id)}')">✕</button>
       </div>
     `;

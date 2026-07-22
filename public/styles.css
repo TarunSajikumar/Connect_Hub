@@ -417,11 +417,25 @@ body {
 .mode-btn:hover { color: var(--text1); }
 .mode-btn.active { background: rgba(167, 139, 250, 0.18); border: 1px solid rgba(167, 139, 250, 0.35); color: #c4b5fd; box-shadow: 0 2px 10px rgba(167, 139, 250, 0.15); }
 
-/* Datetime Picker */
-.schedule-picker-wrap { display: flex; flex-direction: column; gap: .4rem; padding: .75rem 1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; animation: fadeIn .3s ease; }
+/* Datetime Picker & Quick Presets */
+.schedule-picker-wrap { display: flex; flex-direction: column; gap: .55rem; padding: .85rem 1.1rem; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 12px; animation: fadeIn .3s ease; }
 .schedule-label { font-size: .78rem; font-weight: 600; color: var(--text2); }
-.schedule-datetime-input { width: 100%; padding: .6rem .85rem; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text1); font-family: inherit; font-size: .85rem; outline: none; transition: var(--transition); color-scheme: dark; }
+.schedule-datetime-input { width: 100%; padding: .65rem .85rem; background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text1); font-family: inherit; font-size: .85rem; outline: none; transition: var(--transition); color-scheme: dark; }
 .schedule-datetime-input:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(251,191,36,.15); }
+
+.quick-preset-bar { display: flex; flex-direction: column; gap: .4rem; margin-top: .15rem; }
+.quick-preset-title { font-size: .74rem; font-weight: 700; color: var(--amber); }
+.quick-preset-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
+.preset-tag {
+  padding: .3rem .65rem; background: rgba(251,191,36,.1); border: 1px solid rgba(251,191,36,.25);
+  border-radius: 100px; color: var(--amber); font-size: .74rem; font-weight: 600;
+  cursor: pointer; transition: var(--transition);
+}
+.preset-tag:hover {
+  background: rgba(251,191,36,.25); border-color: rgba(251,191,36,.45); color: #fff;
+  transform: translateY(-1px);
+}
+.preset-tag:active { transform: scale(0.96); }
 
 /* Scheduled Jobs List */
 .scheduled-jobs-list { display: flex; flex-direction: column; gap: .65rem; }
@@ -433,6 +447,14 @@ body {
 .sched-job-details strong { font-size: .86rem; color: var(--text1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sched-job-meta { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem; font-size: .75rem; color: var(--text2); }
 .sched-time-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .6rem; border-radius: 100px; background: rgba(251,191,36,.15); border: 1px solid rgba(251,191,36,.3); color: var(--amber); font-weight: 700; font-size: .72rem; }
+.sched-job-actions { display: flex; align-items: center; gap: .45rem; flex-shrink: 0; }
+
+.btn-run-job-now {
+  padding: .35rem .75rem; background: rgba(52,211,153,.15); border: 1px solid rgba(52,211,153,.35);
+  border-radius: 6px; color: var(--green); font-size: .75rem; font-weight: 700; cursor: pointer; transition: var(--transition); white-space: nowrap;
+}
+.btn-run-job-now:hover { background: var(--green); color: #07091a; transform: translateY(-1px); }
+
 .btn-cancel-job { padding: .35rem .75rem; background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.3); border-radius: 6px; color: var(--red); font-size: .75rem; font-weight: 600; cursor: pointer; transition: var(--transition); white-space: nowrap; }
 .btn-cancel-job:hover { background: var(--red); color: #fff; }
 

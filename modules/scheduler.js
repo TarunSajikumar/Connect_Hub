@@ -136,6 +136,16 @@ export default class SchedulerModule {
     return this.jobs;
   }
 
+  async runJobNow(jobId) {
+    const job = this.jobs.find(j => j.jobId === jobId);
+    if (!job) throw new Error('Job not found');
+    if (job.status !== 'pending') throw new Error('Only pending jobs can be executed immediately');
+
+    console.log(`[Scheduler] Triggering quick immediate execution for job: ${jobId}`);
+    await this.executeJob(job);
+    return job;
+  }
+
   cancelJob(jobId) {
     const job = this.jobs.find(j => j.jobId === jobId);
     if (!job) throw new Error('Job not found');

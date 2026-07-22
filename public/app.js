@@ -1463,6 +1463,29 @@ async function fetchScheduledJobs() {
   } catch (e) { /* ignore */ }
 }
 
+function setQuickPreset(preset) {
+  const dtInput = document.getElementById('schedule-datetime');
+  if (!dtInput) return;
+
+  const now = new Date();
+  let targetDate = new Date();
+
+  if (typeof preset === 'number') {
+    targetDate = new Date(now.getTime() + preset * 60 * 1000);
+  } else if (preset === 'tomorrow_9am') {
+    targetDate.setDate(targetDate.getDate() + 1);
+    targetDate.setHours(9, 0, 0, 0);
+  } else if (preset === 'tomorrow_6pm') {
+    targetDate.setDate(targetDate.getDate() + 1);
+    targetDate.setHours(18, 0, 0, 0);
+  }
+
+  targetDate.setMinutes(targetDate.getMinutes() - targetDate.getTimezoneOffset());
+  dtInput.value = targetDate.toISOString().slice(0, 16);
+
+  toast('info', `⚡ Preset set: ${targetDate.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`);
+}
+
 function renderScheduledJobs() {
   const container = document.getElementById('scheduled-jobs-list');
   if (!container) return;
@@ -1497,10 +1520,29 @@ function renderScheduledJobs() {
             ${job.caption ? `<span style="font-size:.75rem; color:var(--text2); font-style:italic">"${esc(job.caption.substring(0, 80))}${job.caption.length > 80 ? '…' : ''}"</span>` : ''}
           </div>
         </div>
-        <button class="btn-cancel-job" onclick="cancelScheduledJob('${job.jobId}')">✕ Cancel</button>
+        <div class="sched-job-actions">
+          <button class="btn-run-job-now" onclick="runScheduledJobNow('${job.jobId}')" title="Publish broadcast immediately">⚡ Post Now</button>
+          <button class="btn-cancel-job" onclick="cancelScheduledJob('${job.jobId}')">✕ Cancel</button>
+        </div>
       </div>
     `;
   }).join('');
+}
+
+async function runScheduledJobNow(jobId) {
+  if (!confirm('Publish this scheduled broadcast immediately now?')) return;
+  try {
+    toast('info', '⚡ Triggering immediate broadcast execution…');
+    const res = await api('POST', '/api/schedule/run-now', { jobId });
+    if (res.success) {
+      toast('success', '🚀 Broadcast triggered! Publishing in background…');
+      fetchScheduledJobs();
+    } else {
+      toast('error', res.error || 'Failed to trigger job execution');
+    }
+  } catch (e) {
+    toast('error', 'Error executing scheduled job');
+  }
 }
 
 async function cancelScheduledJob(jobId) {

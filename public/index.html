@@ -290,8 +290,21 @@
         </div>
 
         <div id="schedule-picker-wrap" class="schedule-picker-wrap" style="display:none">
-          <label class="schedule-label" for="schedule-datetime">Select Date &amp; Time:</label>
+          <div class="schedule-picker-header">
+            <label class="schedule-label" for="schedule-datetime">Select Date &amp; Time:</label>
+          </div>
           <input type="datetime-local" id="schedule-datetime" class="schedule-datetime-input" />
+          <div class="quick-preset-bar">
+            <span class="quick-preset-title">⚡ Quick Presets:</span>
+            <div class="quick-preset-tags">
+              <button class="preset-tag" onclick="setQuickPreset(15)">+15m</button>
+              <button class="preset-tag" onclick="setQuickPreset(60)">+1h</button>
+              <button class="preset-tag" onclick="setQuickPreset(180)">+3h</button>
+              <button class="preset-tag" onclick="setQuickPreset(360)">+6h</button>
+              <button class="preset-tag" onclick="setQuickPreset('tomorrow_9am')">Tomorrow 9 AM</button>
+              <button class="preset-tag" onclick="setQuickPreset('tomorrow_6pm')">Tomorrow 6 PM</button>
+            </div>
+          </div>
         </div>
       </div>
 

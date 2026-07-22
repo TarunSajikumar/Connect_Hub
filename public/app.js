@@ -1098,6 +1098,31 @@ async function clearCookies() {
   }
 }
 
+async function pasteClipboardToInput() {
+  const input = document.getElementById('dl-url-input');
+  if (!input) return;
+
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      input.focus();
+      toast('info', '💡 Press Ctrl+V or right-click to paste');
+      return;
+    }
+    const text = await navigator.clipboard.readText();
+    if (text && text.trim()) {
+      input.value = text.trim();
+      input.focus();
+      toast('success', '📋 Link pasted from clipboard!');
+    } else {
+      toast('warning', 'Clipboard is empty');
+    }
+  } catch (err) {
+    console.warn('[Paste Error]', err);
+    input.focus();
+    toast('info', '💡 Please allow clipboard permission or press Ctrl+V to paste');
+  }
+}
+
 async function startDownload() {
   const input = document.getElementById('dl-url-input');
   const url = input?.value.trim();

@@ -505,6 +505,19 @@ body {
 .dl-url-input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(167,139,250,.15); }
 .dl-url-input::placeholder { color: var(--text3); }
 
+.btn-paste {
+  display: inline-flex; align-items: center; gap: .45rem;
+  padding: .75rem 1.1rem; background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  color: var(--text1); font-size: .88rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap; transition: var(--transition);
+}
+.btn-paste:hover {
+  background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.25);
+  transform: translateY(-1px);
+}
+.btn-paste:active { transform: scale(0.96); }
+
 .btn-download {
   display: inline-flex; align-items: center; gap: .5rem;
   padding: .75rem 1.4rem; background: linear-gradient(135deg, #a78bfa, #7c3aed);

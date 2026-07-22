@@ -45,6 +45,12 @@
   <span id="server-banner-text">Connecting to ContentHub server…</span>
 </div>
 
+<!-- Network Offline Banner -->
+<div class="server-banner network-banner hidden" id="network-banner">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
+  <span id="network-banner-text">⚠️ No Internet Connection. Mobile data / Wi-Fi disconnected.</span>
+</div>
+
 <!-- ====== NAV HEADER ====== -->
 <nav class="nav">
   <div class="nav-brand">
@@ -290,20 +296,66 @@
         </div>
 
         <div id="schedule-picker-wrap" class="schedule-picker-wrap" style="display:none">
-          <div class="schedule-picker-header">
-            <label class="schedule-label" for="schedule-datetime">Select Date &amp; Time:</label>
-          </div>
-          <input type="datetime-local" id="schedule-datetime" class="schedule-datetime-input" />
-          <div class="quick-preset-bar">
-            <span class="quick-preset-title">⚡ Quick Presets:</span>
-            <div class="quick-preset-tags">
-              <button class="preset-tag" onclick="setQuickPreset(15)">+15m</button>
-              <button class="preset-tag" onclick="setQuickPreset(60)">+1h</button>
-              <button class="preset-tag" onclick="setQuickPreset(180)">+3h</button>
-              <button class="preset-tag" onclick="setQuickPreset(360)">+6h</button>
-              <button class="preset-tag" onclick="setQuickPreset('tomorrow_9am')">Tomorrow 9 AM</button>
-              <button class="preset-tag" onclick="setQuickPreset('tomorrow_6pm')">Tomorrow 6 PM</button>
+          <div class="custom-datetime-studio">
+            <div class="studio-picker-title-row">
+              <span class="studio-picker-title">🗓️ Schedule Date &amp; Time Studio</span>
+              <span class="studio-picker-badge" id="custom-dt-preview-badge">Select a date &amp; time</span>
             </div>
+
+            <!-- Custom Calendar & Time Section -->
+            <div class="custom-picker-layout">
+              <!-- Left: Interactive Calendar -->
+              <div class="custom-calendar-box">
+                <div class="cal-nav-header">
+                  <button class="cal-nav-btn" onclick="changeCalMonth(-1)">‹</button>
+                  <span class="cal-month-title" id="cal-month-title">July 2026</span>
+                  <button class="cal-nav-btn" onclick="changeCalMonth(1)">›</button>
+                </div>
+                <div class="cal-weekdays">
+                  <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                </div>
+                <div class="cal-days-grid" id="cal-days-grid">
+                  <!-- Rendered dynamically by app.js -->
+                </div>
+              </div>
+
+              <!-- Right: Time Selector & AM/PM Toggle -->
+              <div class="custom-time-box">
+                <span class="time-box-label">⏰ Select Time</span>
+                <div class="time-picker-row">
+                  <select id="time-hour-select" class="time-select" onchange="onCustomTimeChange()">
+                    <option value="01">01</option><option value="02">02</option><option value="03">03</option>
+                    <option value="04">04</option><option value="05">05</option><option value="06">06</option>
+                    <option value="07">07</option><option value="08">08</option><option value="09" selected>09</option>
+                    <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+                  </select>
+                  <span class="time-colon">:</span>
+                  <select id="time-minute-select" class="time-select" onchange="onCustomTimeChange()">
+                    <option value="00" selected>00</option><option value="05">05</option><option value="10">10</option>
+                    <option value="15">15</option><option value="20">20</option><option value="25">25</option>
+                    <option value="30">30</option><option value="35">35</option><option value="40">40</option>
+                    <option value="45">45</option><option value="50">50</option><option value="55">55</option>
+                  </select>
+                  <button class="ampm-toggle-btn" id="ampm-toggle" onclick="toggleAmPm()">AM</button>
+                </div>
+
+                <div class="quick-preset-bar">
+                  <span class="quick-preset-title">⚡ Quick Presets:</span>
+                  <div class="quick-preset-tags">
+                    <button class="preset-tag" onclick="setQuickPreset(15)">+15m</button>
+                    <button class="preset-tag" onclick="setQuickPreset(30)">+30m</button>
+                    <button class="preset-tag" onclick="setQuickPreset(60)">+1h</button>
+                    <button class="preset-tag" onclick="setQuickPreset(180)">+3h</button>
+                    <button class="preset-tag" onclick="setQuickPreset('tonight_9pm')">Tonight 9 PM</button>
+                    <button class="preset-tag" onclick="setQuickPreset('tomorrow_9am')">Tomorrow 9 AM</button>
+                    <button class="preset-tag" onclick="setQuickPreset('tomorrow_6pm')">Tomorrow 6 PM</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hidden input to keep API payload compatibility intact -->
+            <input type="hidden" id="schedule-datetime" />
           </div>
         </div>
       </div>

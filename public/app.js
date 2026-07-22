@@ -30,6 +30,18 @@ const state = {
   scheduledJobs: []
 };
 
+// ── Custom Date/Time Studio Picker State ──
+const pickerState = {
+  viewYear: new Date().getFullYear(),
+  viewMonth: new Date().getMonth(),
+  selectedYear: new Date().getFullYear(),
+  selectedMonth: new Date().getMonth(),
+  selectedDay: new Date().getDate(),
+  selectedHour: '09',
+  selectedMinute: '00',
+  selectedAmPm: 'AM'
+};
+
 // ── Init ───────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   connectWebSocket();
@@ -41,6 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchHistory();
   fetchScheduledJobs();
   fetchSessionConfig();
+  initCustomPicker();
+  setupNetworkListeners();
 });
 
 function initEtherealShadowAnimation() {
@@ -1463,15 +1477,179 @@ async function fetchScheduledJobs() {
   } catch (e) { /* ignore */ }
 }
 
-function setQuickPreset(preset) {
-  const dtInput = document.getElementById('schedule-datetime');
-  if (!dtInput) return;
+// ── Custom Date/Time Studio Picker & Network Monitoring ──
+function setupNetworkListeners() {
+  window.addEventListener('online', () => {
+    const banner = document.getElementById('network-banner');
+    if (banner) banner.classList.add('hidden');
+    toast('success', '🌐 Internet connection restored!');
+    fetchStatus();
+  });
+  window.addEventListener('offline', () => {
+    const banner = document.getElementById('network-banner');
+    if (banner) banner.classList.remove('hidden');
+    toast('error', '⚠️ Device is offline. Check mobile data or Wi-Fi connection.');
+  });
+}
 
+function initCustomPicker() {
+  const defaultTarget = new Date(Date.now() + 60 * 60 * 1000);
+  setPickerFromDate(defaultTarget);
+}
+
+function setPickerFromDate(d) {
+  pickerState.viewYear = d.getFullYear();
+  pickerState.viewMonth = d.getMonth();
+  pickerState.selectedYear = d.getFullYear();
+  pickerState.selectedMonth = d.getMonth();
+  pickerState.selectedDay = d.getDate();
+
+  let h = d.getHours();
+  pickerState.selectedAmPm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  h = h ? h : 12;
+  pickerState.selectedHour = String(h).padStart(2, '0');
+
+  const m = Math.floor(d.getMinutes() / 5) * 5;
+  pickerState.selectedMinute = String(m).padStart(2, '0');
+
+  updatePickerControls();
+  renderCalendar();
+  syncCustomDateTime();
+}
+
+function updatePickerControls() {
+  const hSel = document.getElementById('time-hour-select');
+  const mSel = document.getElementById('time-minute-select');
+  const ampmBtn = document.getElementById('ampm-toggle');
+
+  if (hSel) hSel.value = pickerState.selectedHour;
+  if (mSel) mSel.value = pickerState.selectedMinute;
+  if (ampmBtn) ampmBtn.textContent = pickerState.selectedAmPm;
+}
+
+function renderCalendar() {
+  const grid = document.getElementById('cal-days-grid');
+  const title = document.getElementById('cal-month-title');
+  if (!grid || !title) return;
+
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  title.textContent = `${monthNames[pickerState.viewMonth]} ${pickerState.viewYear}`;
+
+  const firstDayIndex = new Date(pickerState.viewYear, pickerState.viewMonth, 1).getDay();
+  const totalDays = new Date(pickerState.viewYear, pickerState.viewMonth + 1, 0).getDate();
+  const prevMonthTotalDays = new Date(pickerState.viewYear, pickerState.viewMonth, 0).getDate();
+
+  const today = new Date();
+  const isCurrentMonth = today.getFullYear() === pickerState.viewYear && today.getMonth() === pickerState.viewMonth;
+
+  let html = '';
+
+  for (let i = firstDayIndex; i > 0; i--) {
+    const prevDay = prevMonthTotalDays - i + 1;
+    html += `<span class="cal-day pad">${prevDay}</span>`;
+  }
+
+  for (let day = 1; day <= totalDays; day++) {
+    const isToday = isCurrentMonth && today.getDate() === day;
+    const isSelected = pickerState.selectedYear === pickerState.viewYear &&
+                       pickerState.selectedMonth === pickerState.viewMonth &&
+                       pickerState.selectedDay === day;
+
+    let cls = 'cal-day';
+    if (isToday) cls += ' today';
+    if (isSelected) cls += ' active';
+
+    html += `<button class="${cls}" onclick="selectCalDay(${pickerState.viewYear}, ${pickerState.viewMonth}, ${day})">${day}</button>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+function changeCalMonth(delta) {
+  pickerState.viewMonth += delta;
+  if (pickerState.viewMonth < 0) {
+    pickerState.viewMonth = 11;
+    pickerState.viewYear--;
+  } else if (pickerState.viewMonth > 11) {
+    pickerState.viewMonth = 0;
+    pickerState.viewYear++;
+  }
+  renderCalendar();
+}
+
+function selectCalDay(year, month, day) {
+  pickerState.selectedYear = year;
+  pickerState.selectedMonth = month;
+  pickerState.selectedDay = day;
+  renderCalendar();
+  syncCustomDateTime();
+}
+
+function onCustomTimeChange() {
+  const hSel = document.getElementById('time-hour-select');
+  const mSel = document.getElementById('time-minute-select');
+  if (hSel) pickerState.selectedHour = hSel.value;
+  if (mSel) pickerState.selectedMinute = mSel.value;
+  syncCustomDateTime();
+}
+
+function toggleAmPm() {
+  pickerState.selectedAmPm = pickerState.selectedAmPm === 'AM' ? 'PM' : 'AM';
+  const ampmBtn = document.getElementById('ampm-toggle');
+  if (ampmBtn) ampmBtn.textContent = pickerState.selectedAmPm;
+  syncCustomDateTime();
+}
+
+function syncCustomDateTime() {
+  let hour = parseInt(pickerState.selectedHour, 10);
+  if (pickerState.selectedAmPm === 'PM' && hour < 12) hour += 12;
+  if (pickerState.selectedAmPm === 'AM' && hour === 12) hour = 0;
+
+  const d = new Date(
+    pickerState.selectedYear,
+    pickerState.selectedMonth,
+    pickerState.selectedDay,
+    hour,
+    parseInt(pickerState.selectedMinute, 10),
+    0
+  );
+
+  const localIso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const hiddenInput = document.getElementById('schedule-datetime');
+  if (hiddenInput) hiddenInput.value = localIso;
+
+  const previewBadge = document.getElementById('custom-dt-preview-badge');
+  if (previewBadge) {
+    const diffMs = d.getTime() - Date.now();
+    let relativeStr = '';
+    if (diffMs <= 0) {
+      relativeStr = 'Past time selected';
+    } else {
+      const diffMins = Math.round(diffMs / 60000);
+      if (diffMins < 60) {
+        relativeStr = `In ${diffMins} mins`;
+      } else {
+        const diffHrs = (diffMins / 60).toFixed(1);
+        relativeStr = `In ${diffHrs} hrs`;
+      }
+    }
+
+    const dateStr = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr = `${pickerState.selectedHour}:${pickerState.selectedMinute} ${pickerState.selectedAmPm}`;
+    previewBadge.textContent = `${dateStr} @ ${timeStr} (${relativeStr})`;
+  }
+}
+
+function setQuickPreset(preset) {
   const now = new Date();
   let targetDate = new Date();
 
   if (typeof preset === 'number') {
     targetDate = new Date(now.getTime() + preset * 60 * 1000);
+  } else if (preset === 'tonight_9pm') {
+    targetDate.setHours(21, 0, 0, 0);
+    if (targetDate <= now) targetDate.setDate(targetDate.getDate() + 1);
   } else if (preset === 'tomorrow_9am') {
     targetDate.setDate(targetDate.getDate() + 1);
     targetDate.setHours(9, 0, 0, 0);
@@ -1480,9 +1658,7 @@ function setQuickPreset(preset) {
     targetDate.setHours(18, 0, 0, 0);
   }
 
-  targetDate.setMinutes(targetDate.getMinutes() - targetDate.getTimezoneOffset());
-  dtInput.value = targetDate.toISOString().slice(0, 16);
-
+  setPickerFromDate(targetDate);
   toast('info', `⚡ Preset set: ${targetDate.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`);
 }
 

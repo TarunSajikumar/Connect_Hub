@@ -583,6 +583,10 @@ app.post('/api/download', async (req, res) => {
     '-f', 'b[ext=mp4]/best[ext=mp4]/bestvideo+bestaudio/best',
     '-o', outputTemplate,
     '--no-warnings',
+    '--retries', '5',
+    '--fragment-retries', '5',
+    '--no-check-certificates',
+    '--geo-bypass',
     '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
     '--add-header', 'Accept-Language: en-US,en;q=0.9',
     '--referer', isInstagram ? 'https://www.instagram.com/' : 'https://www.youtube.com/'

@@ -839,12 +839,69 @@ body {
     font-size: .75rem;
   }
 
+/* ── Universal Responsive Sizing (Tablet & Mobile & Desktop) ── */
+
+/* Desktop & Large Displays (> 1024px) */
+@media (min-width: 1025px) {
+  .hero-studio-row,
+  .platforms-hub-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Tablet Screens (769px - 1024px) */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .dashboard-studio {
+    padding: 1rem 1.5rem 2rem 1.5rem;
+    gap: 1.25rem;
+  }
+  .hero-studio-row,
+  .platforms-hub-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.1rem;
+  }
+  .analytics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+  .hero-banner-section {
+    padding: 2.2rem 1.5rem;
+  }
+  .hero-heading {
+    font-size: clamp(2rem, 3.5vw, 2.5rem);
+  }
+}
+
+/* Mobile Screens (<= 768px) */
+@media (max-width: 768px) {
+  .nav-center { display: none; }
+  .navbar { padding: .75rem 1rem; }
+  .brand-tag { display: none; }
+  .nav-sync span { display: none; }
+  .nav-sync { padding: .45rem .75rem; }
+
+  .dashboard-studio {
+    padding: .75rem .75rem 2rem .75rem;
+    gap: 1.1rem;
+  }
+
+  .hero-studio-row,
+  .platforms-hub-row {
+    grid-template-columns: 1fr;
+    gap: 1.1rem;
+  }
+
+  .analytics-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: .75rem;
+  }
+
   .hero-banner-section {
     padding: 1.8rem 1rem;
     border-radius: 16px;
   }
   .hero-heading {
-    font-size: 1.65rem;
+    font-size: clamp(1.5rem, 5vw, 2rem);
   }
   .hero-subheading {
     font-size: .86rem;
@@ -883,7 +940,7 @@ body {
     flex-direction: column;
     gap: .6rem;
   }
-  .btn-download {
+  .btn-paste, .btn-download {
     width: 100%;
     justify-content: center;
     padding: .75rem;
@@ -903,24 +960,24 @@ body {
   }
 
   .scheduled-job-card {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: stretch;
     gap: .75rem;
-    padding: .75rem .85rem;
+    padding: .85rem;
   }
   .sched-job-info {
-    flex: 1;
-    min-width: 0;
+    width: 100%;
   }
-  .btn-cancel-job {
-    width: auto;
-    flex-shrink: 0;
-    padding: .35rem .65rem;
+  .sched-job-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .btn-run-job-now, .btn-cancel-job {
+    flex: 1;
     text-align: center;
+    justify-content: center;
   }
 
-  /* Keep Group & History Items Clean Row Layout on Mobile */
   .group-item,
   .history-item {
     flex-direction: row;
@@ -994,6 +1051,13 @@ body {
   }
   .group-count {
     display: none;
+  }
+  .quick-preset-tags {
+    gap: .3rem;
+  }
+  .preset-tag {
+    font-size: .7rem;
+    padding: .25rem .5rem;
   }
 }
 

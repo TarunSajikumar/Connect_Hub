@@ -215,6 +215,7 @@ function updateWaStatus(wa) {
     state.platforms.whatsapp.connected = true;
     show('wa-connected');
     hide('wa-disconnected');
+    hide('wa-qr-container');
     document.getElementById('wa-phone-display').textContent = '+' + wa.phone;
     document.getElementById('wa-group-count').textContent =
       `${wa.groupCount || 0} groups · ${wa.channelCount || 0} channels · ${formatNum((wa.totalMembers||0)+(wa.totalSubscribers||0))} total`;

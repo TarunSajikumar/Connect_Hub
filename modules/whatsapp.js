@@ -7,7 +7,8 @@
 import makeWASocket, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  DisconnectReason
+  DisconnectReason,
+  Browsers
 } from '@whiskeysockets/baileys';
 import QRCode from 'qrcode';
 import pino from 'pino';
@@ -27,6 +28,7 @@ export default class WhatsAppModule {
     this.connecting = false;
     this.reconnecting = false;
     this.wasEverOpen = false;
+    this.explicitDisconnect = false;
     this.phone = null;
     this.groups = [];
     this.channels = [];
@@ -94,13 +96,40 @@ export default class WhatsAppModule {
     };
   }
 
-  async connect() {
-    if (this.connected && this.sock) return;
-    if (this.connecting || this.reconnecting) return;
+  async connect(force = false) {
+    if (force) {
+      this.connecting = false;
+      this.reconnecting = false;
+      this.explicitDisconnect = false;
+    }
+
+    if (this.connected && this.sock && !force) return;
+
+    // Reset connecting state if stuck for over 15 seconds
+    if (this.connectingTime && (Date.now() - this.connectingTime > 15000)) {
+      this.connecting = false;
+    }
+
+    if ((this.connecting || this.reconnecting) && !force) return;
 
     this.connecting = true;
+    this.connectingTime = Date.now();
+
     if (!fs.existsSync(this.sessionsDir)) {
       fs.mkdirSync(this.sessionsDir, { recursive: true });
+    }
+
+    // If forcing a new connection or if no valid creds exist, clear any partial stale auth keys
+    const credsFile = path.join(this.sessionsDir, 'creds.json');
+    if (!this.connected && (!fs.existsSync(credsFile) || force)) {
+      try {
+        const files = fs.readdirSync(this.sessionsDir);
+        for (const f of files) {
+          if (f !== 'saved_channels.json' && f !== 'saved_groups.json') {
+            fs.rmSync(path.join(this.sessionsDir, f), { recursive: true, force: true });
+          }
+        }
+      } catch (e) {}
     }
 
     if (this.sock) {
@@ -111,6 +140,16 @@ export default class WhatsAppModule {
       this.sock = null;
     }
 
+    // Safety 20s timeout guard to prevent connecting state from getting stuck forever
+    if (this.connectTimeout) clearTimeout(this.connectTimeout);
+    this.connectTimeout = setTimeout(() => {
+      if (this.connecting && !this.connected) {
+        console.log('[WA] Connection attempt safety timeout reached. Resetting connecting state.');
+        this.connecting = false;
+        this.broadcast({ type: 'status', data: this.getStatus() });
+      }
+    }, 20000);
+
     try {
       const { state, saveCreds } = await useMultiFileAuthState(this.sessionsDir);
       const { version } = await fetchLatestBaileysVersion();
@@ -120,9 +159,12 @@ export default class WhatsAppModule {
         auth: state,
         logger,
         printQRInTerminal: false,
-        browser: ['ContentHub', 'Chrome', '3.0'],
-        markOnlineOnConnect: false,
-        syncFullHistory: true
+        browser: Browsers.ubuntu('Chrome'),
+        markOnlineOnConnect: true,
+        syncFullHistory: false,
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 25000
       });
 
       this.sock = sock;
@@ -136,7 +178,6 @@ export default class WhatsAppModule {
 
       // ── Auto-detect Channels from chat sync ─────────────────
       sock.ev.on('chats.set', ({ chats }) => {
-        // Look for newsletter chats
         const newsletters = chats.filter(c => c.id && c.id.endsWith('@newsletter'));
         if (newsletters.length > 0) {
           console.log(`[WA] Auto-detected ${newsletters.length} channel(s) from sync`);
@@ -146,7 +187,6 @@ export default class WhatsAppModule {
         }
       });
 
-      // Listen for new chats (including newsletters)
       sock.ev.on('chats.upsert', (chats) => {
         const newsletters = chats.filter(c => c.id && c.id.endsWith('@newsletter'));
         if (newsletters.length > 0) {
@@ -176,27 +216,22 @@ export default class WhatsAppModule {
           this.connected = false;
           this.connecting = false;
           this.phone = null;
+          if (this.connectTimeout) clearTimeout(this.connectTimeout);
 
           const statusCode = lastDisconnect?.error?.output?.statusCode;
           console.log(`[WA] Connection closed. Status: ${statusCode || 'unknown'}, Error: ${lastDisconnect?.error?.message || 'closed'}`);
 
           this.broadcast({ type: 'wa_disconnected', reason: 'closed' });
+          this.broadcast({ type: 'status', data: this.getStatus() });
 
           const credsExists = fs.existsSync(path.join(this.sessionsDir, 'creds.json'));
-          const shouldReconnect = credsExists && (
-            statusCode === DisconnectReason.restartRequired ||
-            statusCode === DisconnectReason.connectionClosed ||
-            statusCode === DisconnectReason.connectionLost ||
-            statusCode === DisconnectReason.timedOut ||
-            statusCode === 515 ||
-            !statusCode ||
-            this.wasEverOpen
-          );
+          // ALWAYS auto-reconnect if session exists on disk, unless user explicitly clicked Disconnect button
+          const shouldReconnect = credsExists && !this.explicitDisconnect;
 
           if (shouldReconnect && !this.reconnecting) {
             this.reconnecting = true;
-            const delay = (statusCode === DisconnectReason.restartRequired || statusCode === 515) ? 1500 : 4000;
-            console.log(`[WA] Session preserved on disk. Reconnecting in ${delay}ms…`);
+            const delay = (statusCode === DisconnectReason.restartRequired || statusCode === 515) ? 1000 : 3000;
+            console.log(`[WA] Session preserved on disk. Auto-reconnecting in ${delay}ms…`);
             setTimeout(() => {
               this.reconnecting = false;
               this.connect();
@@ -205,17 +240,20 @@ export default class WhatsAppModule {
         }
 
         if (connection === 'open') {
+          if (this.connectTimeout) clearTimeout(this.connectTimeout);
           this.connected = true;
           this.connecting = false;
           this.reconnecting = false;
           this.wasEverOpen = true;
+          this.explicitDisconnect = false;
 
           const user = sock.user;
           this.phone = user?.id ? user.id.split(':')[0].split('@')[0] : 'Unknown';
           this.newsletterCheckDone = false;
           console.log(`[WA] Connected successfully to WhatsApp (+${this.phone})`);
           this.broadcast({ type: 'wa_connected', phone: this.phone });
-          
+          this.broadcast({ type: 'status', data: this.getStatus() });
+
           // Load groups and channels after connection
           setTimeout(async () => {
             await this.loadGroups();
@@ -224,9 +262,11 @@ export default class WhatsAppModule {
         }
       });
     } catch (err) {
+      if (this.connectTimeout) clearTimeout(this.connectTimeout);
       this.connecting = false;
       this.connected = false;
       console.error('[WA] Connection error:', err.message);
+      this.broadcast({ type: 'status', data: this.getStatus() });
     }
   }
 
@@ -571,9 +611,13 @@ export default class WhatsAppModule {
   }
 
   async disconnect() {
+    this.explicitDisconnect = true;
+    this.wasEverOpen = false;
     try { if (this.sock) await this.sock.logout(); } catch (e) {}
     this.sock = null;
     this.connected = false;
+    this.connecting = false;
+    this.reconnecting = false;
     this.phone = null;
     this.groups = [];
     this.channels = [];

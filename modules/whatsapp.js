@@ -29,6 +29,7 @@ export default class WhatsAppModule {
     this.reconnecting = false;
     this.wasEverOpen = false;
     this.explicitDisconnect = false;
+    this.currentQR = null;
     this.phone = null;
     this.groups = [];
     this.channels = [];
@@ -97,13 +98,20 @@ export default class WhatsAppModule {
   }
 
   async connect(force = false) {
+    if (this.connected && this.sock && !force) return;
+
+    // If a live QR code is already waiting on an active socket and not forcing, broadcast active QR
+    if (!this.connected && this.sock && this.currentQR && !force) {
+      this.broadcast({ type: 'wa_qr', qr: this.currentQR });
+      return;
+    }
+
     if (force) {
       this.connecting = false;
       this.reconnecting = false;
       this.explicitDisconnect = false;
+      this.currentQR = null;
     }
-
-    if (this.connected && this.sock && !force) return;
 
     // Reset connecting state if stuck for over 15 seconds
     if (this.connectingTime && (Date.now() - this.connectingTime > 15000)) {
@@ -152,14 +160,20 @@ export default class WhatsAppModule {
 
     try {
       const { state, saveCreds } = await useMultiFileAuthState(this.sessionsDir);
-      const { version } = await fetchLatestBaileysVersion();
+      let version;
+      try {
+        const v = await fetchLatestBaileysVersion();
+        version = v.version;
+      } catch (e) {
+        version = [2, 3000, 1019441761];
+      }
 
       const sock = makeWASocket({
         version,
         auth: state,
         logger,
         printQRInTerminal: false,
-        browser: Browsers.ubuntu('Chrome'),
+        browser: Browsers.macOS('Desktop'),
         markOnlineOnConnect: true,
         syncFullHistory: false,
         connectTimeoutMs: 60000,
@@ -206,6 +220,7 @@ export default class WhatsAppModule {
               width: 300, margin: 2,
               color: { dark: '#000000', light: '#FFFFFF' }
             });
+            this.currentQR = qrDataUrl;
             this.broadcast({ type: 'wa_qr', qr: qrDataUrl });
           } catch (e) {
             console.error('[WA] QR error:', e.message);
@@ -216,6 +231,7 @@ export default class WhatsAppModule {
           this.connected = false;
           this.connecting = false;
           this.phone = null;
+          this.currentQR = null;
           if (this.connectTimeout) clearTimeout(this.connectTimeout);
 
           const statusCode = lastDisconnect?.error?.output?.statusCode;
@@ -246,6 +262,7 @@ export default class WhatsAppModule {
           this.reconnecting = false;
           this.wasEverOpen = true;
           this.explicitDisconnect = false;
+          this.currentQR = null;
 
           const user = sock.user;
           this.phone = user?.id ? user.id.split(':')[0].split('@')[0] : 'Unknown';
@@ -265,6 +282,7 @@ export default class WhatsAppModule {
       if (this.connectTimeout) clearTimeout(this.connectTimeout);
       this.connecting = false;
       this.connected = false;
+      this.currentQR = null;
       console.error('[WA] Connection error:', err.message);
       this.broadcast({ type: 'status', data: this.getStatus() });
     }

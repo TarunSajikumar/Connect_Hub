@@ -255,6 +255,7 @@ async function startWhatsApp() {
       } else {
         toast('info', '📱 WhatsApp started — QR code will appear below');
         show('wa-qr-container');
+        if (res.qr) showQR(res.qr);
       }
     } else {
       toast('error', res.error || 'Failed to start WhatsApp');

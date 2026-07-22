@@ -280,13 +280,15 @@ app.post('/api/connect/whatsapp', async (req, res) => {
     return res.json({ success: true, message: 'WhatsApp is already connected.', connected: true });
   }
 
+  const force = !wa.currentQR;
   try {
-    await wa.connect();
+    await wa.connect(force);
     const hasCreds = fs.existsSync(path.join(__dirname, 'sessions', 'whatsapp', 'creds.json'));
     res.json({
       success: true,
       message: hasCreds ? 'Reconnecting saved session…' : 'WhatsApp started — scan the QR code.',
-      hasCreds
+      hasCreds,
+      qr: wa.currentQR || null
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

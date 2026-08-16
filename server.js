@@ -614,7 +614,6 @@ app.post('/api/download', async (req, res) => {
   if (isYouTube) {
     // Try to extract age-gated content without authentication
     args.push('--youtube-skip-dash-manifest');
-    args.push('--compat-opts', 'no-youtube-signature-timestamp');
   }
 
   // Optionally use cookies if available (not required)

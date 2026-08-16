@@ -145,6 +145,9 @@ function handleWsMessage(msg) {
     case 'wa_qr':
       showQR(msg.qr);
       break;
+    case 'wa_pairing_code':
+      onWaPairingCode(msg.code);
+      break;
     case 'wa_connected':
       onWaConnected(msg.phone);
       break;
@@ -211,18 +214,24 @@ async function fetchStatus() {
 }
 
 function applyStatus(data) {
-  if (data.whatsapp) updateWaStatus(data.whatsapp);
+  if (data.whatsapp) updateWaStatus(data.whatsapp, data.engine, data.openwa);
   if (data.telegram) updateTgStatus(data.telegram);
 }
 
 // ── WhatsApp Status ────────────────────────────────────────
-function updateWaStatus(wa) {
+function updateWaStatus(wa, engine = 'openwa', openwaInfo = null) {
   const statusText = document.getElementById('wa-status-text');
   const dot = document.getElementById('wa-dot');
   const card = document.getElementById('wa-card');
+  const badge = document.getElementById('wa-engine-badge');
+
+  if (badge) {
+    badge.textContent = engine === 'baileys' ? 'Baileys Direct' : 'OpenWA Gateway';
+    badge.title = engine === 'baileys' ? 'Running on Standalone Baileys engine' : 'Running on OpenWA API Gateway';
+  }
 
   if (wa.connected) {
-    statusText.textContent = '+' + wa.phone;
+    statusText.textContent = '+' + (wa.phone || 'Connected');
     statusText.classList.add('connected');
     dot.classList.add('on');
     card.classList.add('connected');
@@ -230,7 +239,9 @@ function updateWaStatus(wa) {
     show('wa-connected');
     hide('wa-disconnected');
     hide('wa-qr-container');
-    document.getElementById('wa-phone-display').textContent = '+' + wa.phone;
+    const pairingBox = document.getElementById('wa-pairing-code-box');
+    if (pairingBox) pairingBox.style.display = 'none';
+    document.getElementById('wa-phone-display').textContent = '+' + (wa.phone || 'Connected');
     document.getElementById('wa-group-count').textContent =
       `${wa.groupCount || 0} groups · ${wa.channelCount || 0} channels · ${formatNum((wa.totalMembers||0)+(wa.totalSubscribers||0))} total`;
   } else if (wa.connecting) {
@@ -253,6 +264,25 @@ function updateWaStatus(wa) {
   updateTargetsBadges();
 }
 
+function setWaAuthTab(tab) {
+  const qrTab = document.getElementById('tab-qr-btn');
+  const pairingTab = document.getElementById('tab-pairing-btn');
+  const qrPane = document.getElementById('wa-auth-qr-pane');
+  const pairingPane = document.getElementById('wa-auth-pairing-pane');
+
+  if (tab === 'pairing') {
+    if (pairingTab) pairingTab.classList.add('active');
+    if (qrTab) qrTab.classList.remove('active');
+    if (pairingPane) pairingPane.style.display = 'block';
+    if (qrPane) qrPane.style.display = 'none';
+  } else {
+    if (qrTab) qrTab.classList.add('active');
+    if (pairingTab) pairingTab.classList.remove('active');
+    if (qrPane) qrPane.style.display = 'block';
+    if (pairingPane) pairingPane.style.display = 'none';
+  }
+}
+
 async function startWhatsApp() {
   const btn = document.getElementById('wa-connect-btn');
   btn.disabled = true;
@@ -267,7 +297,7 @@ async function startWhatsApp() {
       } else if (res.hasCreds) {
         toast('info', '📱 Auto-reconnecting saved session…');
       } else {
-        toast('info', '📱 WhatsApp started — QR code will appear below');
+        toast('info', '📱 WhatsApp session started — QR code will appear below');
         show('wa-qr-container');
         if (res.qr) showQR(res.qr);
       }
@@ -282,6 +312,124 @@ async function startWhatsApp() {
   }
 }
 
+async function requestWaPairingCode() {
+  const input = document.getElementById('wa-phone-pairing-input');
+  const btn = document.getElementById('wa-pairing-btn');
+  const phone = input ? input.value.trim() : '';
+
+  if (!phone) {
+    return toast('error', 'Please enter your phone number with country code (e.g. +1234567890)');
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Requesting…'; }
+
+  try {
+    const res = await api('POST', '/api/whatsapp/pairing-code', { phoneNumber: phone });
+    if (res.success && res.code) {
+      onWaPairingCode(res.code);
+      toast('success', '🔑 Pairing code generated! Enter it in WhatsApp.');
+    } else {
+      toast('error', res.error || 'Failed to request pairing code');
+    }
+  } catch (err) {
+    toast('error', err.message || 'Cannot reach server');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Get Code'; }
+  }
+}
+
+function onWaPairingCode(code) {
+  const box = document.getElementById('wa-pairing-code-box');
+  const display = document.getElementById('wa-pairing-code-display');
+  if (box && display) {
+    const str = String(code).trim();
+    display.textContent = str.length === 8 ? `${str.slice(0,4)} - ${str.slice(4)}` : str;
+    box.style.display = 'block';
+  }
+}
+
+// ── OpenWA Gateway Settings Modal ─────────────────────────
+async function openOpenWaModal() {
+  const modal = document.getElementById('openwa-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  try {
+    const res = await api('GET', '/api/openwa/status');
+    if (res.success) {
+      if (res.config) {
+        if (res.config.url) document.getElementById('openwa-url-input').value = res.config.url;
+        if (res.config.apiKey) document.getElementById('openwa-key-input').value = res.config.apiKey;
+        if (res.config.sessionName) document.getElementById('openwa-session-input').value = res.config.sessionName;
+      }
+      if (res.engine) {
+        document.getElementById('openwa-engine-select').value = res.engine;
+      }
+      updateGatewayHealthBox(res.health);
+    }
+  } catch (e) {
+    updateGatewayHealthBox({ ok: false, error: e.message });
+  }
+}
+
+function closeOpenWaModal() {
+  const modal = document.getElementById('openwa-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function updateGatewayHealthBox(health) {
+  const dot = document.getElementById('gateway-dot');
+  const text = document.getElementById('gateway-health-text');
+  if (!dot || !text) return;
+
+  if (health && health.ok) {
+    dot.className = 'health-indicator-dot online';
+    text.innerHTML = '<strong>Gateway Online</strong> — OpenWA API is active & reachable';
+  } else {
+    dot.className = 'health-indicator-dot offline';
+    const err = (health && health.error) || 'Gateway offline or unreachable';
+    text.innerHTML = `<strong>Gateway Offline</strong> — ${err}`;
+  }
+}
+
+async function testOpenWaGateway() {
+  const text = document.getElementById('gateway-health-text');
+  if (text) text.textContent = 'Testing connection to OpenWA gateway…';
+
+  try {
+    const res = await api('GET', '/api/openwa/status');
+    updateGatewayHealthBox(res.health);
+    if (res.health && res.health.ok) {
+      toast('success', '✅ OpenWA Gateway is online and ready!');
+    } else {
+      toast('warning', '⚠️ OpenWA Gateway is offline. Run OpenWA via Docker or npm start.');
+    }
+  } catch (e) {
+    updateGatewayHealthBox({ ok: false, error: e.message });
+    toast('error', 'Cannot connect to OpenWA gateway');
+  }
+}
+
+async function saveOpenWaSettings() {
+  const url = document.getElementById('openwa-url-input').value.trim();
+  const apiKey = document.getElementById('openwa-key-input').value.trim();
+  const sessionName = document.getElementById('openwa-session-input').value.trim();
+  const engine = document.getElementById('openwa-engine-select').value;
+
+  try {
+    const res = await api('POST', '/api/openwa/config', { url, apiKey, sessionName, engine });
+    if (res.success) {
+      toast('success', '✅ OpenWA settings saved successfully!');
+      closeOpenWaModal();
+      fetchStatus();
+    } else {
+      toast('error', res.error || 'Failed to save OpenWA settings');
+    }
+  } catch (e) {
+    toast('error', e.message || 'Cannot save OpenWA settings');
+  }
+}
+
 function showQR(dataUrl) {
   const img = document.getElementById('wa-qr-img');
   img.src = dataUrl;
@@ -291,8 +439,10 @@ function showQR(dataUrl) {
 
 function onWaConnected(phone) {
   hide('wa-qr-container');
+  const pairingBox = document.getElementById('wa-pairing-code-box');
+  if (pairingBox) pairingBox.style.display = 'none';
   fetchStatus();
-  toast('success', `✅ WhatsApp connected! Phone: +${phone}`);
+  toast('success', `✅ WhatsApp connected! Phone: +${phone || 'Active'}`);
   refreshWaGroups();
   refreshWaChannels();
 }

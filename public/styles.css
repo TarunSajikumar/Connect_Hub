@@ -1227,4 +1227,346 @@ body {
 }
 .ampm-toggle-btn:hover { background: var(--purple); color: #fff; transform: translateY(-1px); }
 
+/* ── OpenWA Gateway & Pairing Styles ── */
+.platform-title-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.engine-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .15rem .45rem;
+  border-radius: 9999px;
+  font-size: .65rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(56, 189, 248, 0.15));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.engine-badge:hover {
+  border-color: #34d399;
+  background: rgba(16, 185, 129, 0.25);
+  transform: translateY(-1px);
+}
+
+.platform-header-actions {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin-left: auto;
+}
+
+.btn-settings-icon {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text2);
+  font-size: .85rem;
+  padding: .3rem .45rem;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-settings-icon:hover {
+  background: rgba(255,255,255,0.12);
+  color: var(--text1);
+  border-color: rgba(255,255,255,0.25);
+}
+
+/* ── Auth Tabs (QR vs Pairing Code) ── */
+.auth-tabs {
+  display: flex;
+  gap: .35rem;
+  background: rgba(15, 23, 42, 0.6);
+  padding: .25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin-bottom: .85rem;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: .45rem .6rem;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: var(--text3);
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: center;
+  font-family: inherit;
+}
+.auth-tab:hover {
+  color: var(--text1);
+}
+.auth-tab.active {
+  background: rgba(255,255,255,0.08);
+  color: var(--text1);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* ── Pairing Code Box ── */
+.pairing-input-group {
+  display: flex;
+  gap: .5rem;
+  align-items: center;
+  margin: .6rem 0;
+}
+
+.pairing-code-box {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(56, 189, 248, 0.05));
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: var(--radius-sm);
+  padding: .85rem 1rem;
+  text-align: center;
+  margin-top: .6rem;
+  animation: fadeIn 0.3s ease;
+}
+
+.pairing-code-label {
+  display: block;
+  font-size: .75rem;
+  color: var(--text2);
+  margin-bottom: .4rem;
+}
+
+.pairing-code-display {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: .25em;
+  color: #34d399;
+  text-shadow: 0 0 12px rgba(52, 211, 153, 0.4);
+  padding: .35rem 0;
+}
+
+.pairing-code-hint {
+  display: block;
+  font-size: .7rem;
+  color: var(--text3);
+  margin-top: .3rem;
+}
+
+/* ── OpenWA Settings Modal ── */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(3, 7, 18, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1rem;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-card {
+  background: #0f172a;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--radius-md);
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.6), 0 0 30px rgba(16, 185, 129, 0.15);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.1rem 1.4rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+}
+
+.modal-icon {
+  font-size: 1.4rem;
+}
+
+.modal-title-group h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text1);
+  margin: 0;
+}
+
+.modal-sub {
+  font-size: .75rem;
+  color: var(--text3);
+  display: block;
+}
+
+.btn-close-modal {
+  background: transparent;
+  border: none;
+  color: var(--text3);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: .3rem .5rem;
+  border-radius: 6px;
+  transition: var(--transition);
+}
+.btn-close-modal:hover {
+  background: rgba(255,255,255,0.08);
+  color: var(--text1);
+}
+
+.modal-body {
+  padding: 1.25rem 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+
+.form-group label {
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--text2);
+}
+
+.modal-input, .modal-select {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text1);
+  font-size: .85rem;
+  padding: .55rem .75rem;
+  outline: none;
+  font-family: inherit;
+  transition: var(--transition);
+}
+.modal-input:focus, .modal-select:focus {
+  border-color: #34d399;
+  box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.2);
+}
+
+.form-hint {
+  font-size: .7rem;
+  color: var(--text3);
+}
+
+.gateway-health-box {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: .25rem;
+}
+
+.health-status-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .75rem;
+  color: var(--text2);
+}
+
+.health-indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text3);
+  flex-shrink: 0;
+}
+.health-indicator-dot.online {
+  background: #34d399;
+  box-shadow: 0 0 8px #34d399;
+}
+.health-indicator-dot.offline {
+  background: #f43f5e;
+  box-shadow: 0 0 8px #f43f5e;
+}
+
+.btn-test-gateway {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text1);
+  font-size: .75rem;
+  font-weight: 700;
+  padding: .4rem .75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--transition);
+}
+.btn-test-gateway:hover {
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.3);
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .6rem;
+  padding: 1rem 1.4rem;
+  border-top: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+}
+
+.btn-modal-secondary {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-size: .8rem;
+  font-weight: 600;
+  padding: .5rem 1rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+.btn-modal-secondary:hover {
+  background: rgba(255,255,255,0.05);
+  color: var(--text1);
+}
+
+.btn-modal-primary {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #fff;
+  font-size: .8rem;
+  font-weight: 700;
+  padding: .5rem 1.2rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: var(--transition);
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
+}
+.btn-modal-primary:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
 

@@ -1,6 +1,6 @@
 // ============================================================
 // SOCIAL HUB — modules/session_manager.js
-// Persistent Session & Auto-Reconnect Manager
+// Persistent Session, OpenWA Gateway & Auto-Reconnect Manager
 // ============================================================
 
 import path from 'path';
@@ -12,8 +12,14 @@ export default class SessionManager {
     this.configFile = path.join(sessionsDir, 'session_config.json');
     this.config = {
       rememberMe: true,
+      whatsappEngine: process.env.WHATSAPP_ENGINE || 'openwa', // 'openwa' | 'baileys'
       whatsapp: { autoConnect: true },
-      telegram: { autoConnect: false, token: null }
+      telegram: { autoConnect: false, token: null },
+      openwa: {
+        url: process.env.OPENWA_API_URL || 'http://localhost:2785/api',
+        apiKey: process.env.OPENWA_API_KEY || '',
+        sessionName: process.env.OPENWA_SESSION_NAME || 'social-hub'
+      }
     };
     this.loadConfig();
   }
@@ -23,7 +29,13 @@ export default class SessionManager {
       if (fs.existsSync(this.configFile)) {
         const data = fs.readFileSync(this.configFile, 'utf8');
         const parsed = JSON.parse(data);
-        this.config = { ...this.config, ...parsed };
+        this.config = {
+          ...this.config,
+          ...parsed,
+          openwa: { ...this.config.openwa, ...(parsed.openwa || {}) },
+          whatsapp: { ...this.config.whatsapp, ...(parsed.whatsapp || {}) },
+          telegram: { ...this.config.telegram, ...(parsed.telegram || {}) }
+        };
         if (typeof this.config.rememberMe !== 'boolean') {
           this.config.rememberMe = true;
         }
@@ -53,6 +65,11 @@ export default class SessionManager {
     this.saveConfig();
   }
 
+  setWhatsappEngine(engine) {
+    this.config.whatsappEngine = engine === 'baileys' ? 'baileys' : 'openwa';
+    this.saveConfig();
+  }
+
   setWhatsappAutoConnect(autoConnect) {
     if (!this.config.whatsapp) this.config.whatsapp = {};
     this.config.whatsapp.autoConnect = !!autoConnect;
@@ -64,6 +81,17 @@ export default class SessionManager {
     this.config.telegram.autoConnect = !!autoConnect;
     if (token !== null) {
       this.config.telegram.token = token;
+    }
+    this.saveConfig();
+  }
+
+  setOpenWaConfig({ url, apiKey, sessionName }) {
+    if (!this.config.openwa) this.config.openwa = {};
+    if (url !== undefined) this.config.openwa.url = url.trim().replace(/\/+$/, '');
+    if (apiKey !== undefined) this.config.openwa.apiKey = apiKey.trim();
+    if (sessionName !== undefined && sessionName.trim()) {
+      // OpenWA session names must be alphanumeric and hyphens
+      this.config.openwa.sessionName = sessionName.trim().replace(/[^a-zA-Z0-9-]/g, '-');
     }
     this.saveConfig();
   }

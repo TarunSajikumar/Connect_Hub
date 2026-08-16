@@ -44,6 +44,7 @@ import cors from 'cors';
 import { spawn, execSync } from 'child_process';
 
 import WhatsAppModule from './modules/whatsapp.js';
+import WhatsAppOpenWA from './modules/whatsapp_openwa.js';
 import TelegramModule from './modules/telegram.js';
 import HistoryManager from './modules/history.js';
 import SchedulerModule from './modules/scheduler.js';
@@ -65,7 +66,7 @@ wss.on('error', (err) => {
 });
 
 // Ensure required directories exist
-for (const dir of ['uploads', 'sessions', 'sessions/whatsapp', 'downloads']) {
+for (const dir of ['uploads', 'sessions', 'sessions/whatsapp', 'sessions/openwa', 'downloads']) {
   const p = path.join(__dirname, dir);
   if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
@@ -211,24 +212,64 @@ function broadcast(data) {
 }
 
 // ─── Platform Modules & History & Scheduler & Session ────────
-const wa = new WhatsAppModule(broadcast, path.join(__dirname, 'sessions'));
+const sessionManager = new SessionManager(path.join(__dirname, 'sessions'));
+const initialCfg = sessionManager.getConfig();
+
+const waOpenWA = new WhatsAppOpenWA(broadcast, path.join(__dirname, 'sessions'), {
+  apiUrl: initialCfg.openwa?.url,
+  apiKey: initialCfg.openwa?.apiKey,
+  sessionName: initialCfg.openwa?.sessionName
+});
+const waBaileys = new WhatsAppModule(broadcast, path.join(__dirname, 'sessions'));
+
+// Active WhatsApp Engine Dispatcher
+function getActiveWa() {
+  const currentCfg = sessionManager.getConfig();
+  if (currentCfg.whatsappEngine === 'baileys') {
+    return waBaileys;
+  }
+  return waOpenWA;
+}
+
+// Unified proxy object for wa
+const wa = new Proxy({}, {
+  get(target, prop) {
+    const active = getActiveWa();
+    const val = active[prop];
+    if (typeof val === 'function') {
+      return val.bind(active);
+    }
+    return val;
+  }
+});
+
 const tg = new TelegramModule(broadcast, path.join(__dirname, 'sessions'));
 const historyManager = new HistoryManager(path.join(__dirname, 'sessions'));
 const scheduler = new SchedulerModule(broadcast, path.join(__dirname, 'sessions'), wa, tg);
-const sessionManager = new SessionManager(path.join(__dirname, 'sessions'));
 
 // Auto-Reconnect Remembered Sessions on Server Boot
 (async () => {
   const cfg = sessionManager.getConfig();
   if (cfg.rememberMe !== false) {
     // 1. WhatsApp Auto-Reconnect
-    const waCreds = path.join(__dirname, 'sessions', 'whatsapp', 'creds.json');
-    if (cfg.whatsapp?.autoConnect !== false && fs.existsSync(waCreds)) {
+    if (cfg.whatsapp?.autoConnect !== false) {
       try {
-        console.log('  🔒 [Remember Me] Auto-reconnecting WhatsApp session…');
-        await wa.connect();
+        const activeEngine = cfg.whatsappEngine || 'openwa';
+        if (activeEngine === 'openwa') {
+          console.log('  🔒 [Remember Me] Checking OpenWA WhatsApp gateway session…');
+          const health = await waOpenWA.healthCheck();
+          if (health.ok) {
+            await waOpenWA.connect();
+          }
+        } else {
+          const waCreds = path.join(__dirname, 'sessions', 'whatsapp', 'creds.json');
+          if (fs.existsSync(waCreds)) {
+            console.log('  🔒 [Remember Me] Auto-reconnecting Baileys WhatsApp session…');
+            await waBaileys.connect();
+          }
+        }
       } catch (err) {
-        console.error('  ⚠️ WhatsApp auto-reconnect notice:', err.message);
+        console.warn('  ⚠️ WhatsApp auto-reconnect notice:', err.message);
       }
     }
     // 2. Telegram Auto-Reconnect
@@ -240,17 +281,24 @@ const sessionManager = new SessionManager(path.join(__dirname, 'sessions'));
           historyManager.recordTargets('telegram', tg.chats);
         }
       } catch (err) {
-        console.error('  ⚠️ Telegram auto-reconnect notice:', err.message);
+        console.warn('  ⚠️ Telegram auto-reconnect notice:', err.message);
       }
     }
   }
 })();
 
 function getStatus() {
+  const cfg = sessionManager.getConfig();
+  const activeWa = getActiveWa();
   return {
-    whatsapp: wa.getStatus(),
+    whatsapp: activeWa.getStatus(),
     telegram: tg.getStatus(),
-    rememberMe: sessionManager.getConfig().rememberMe !== false
+    rememberMe: cfg.rememberMe !== false,
+    engine: cfg.whatsappEngine || 'openwa',
+    openwa: {
+      ...cfg.openwa,
+      gatewayOnline: waOpenWA.gatewayOnline
+    }
   };
 }
 
@@ -260,11 +308,6 @@ function broadcastStatus() {
 
 // ─── API: Status & Session Config ────────────────────────────
 app.get('/api/status', (req, res) => {
-  const cfg = sessionManager.getConfig();
-  const waCreds = path.join(__dirname, 'sessions', 'whatsapp', 'creds.json');
-  if (fs.existsSync(waCreds) && cfg.rememberMe !== false && cfg.whatsapp?.autoConnect !== false && !wa.connected && !wa.connecting && !wa.reconnecting) {
-    wa.connect().catch(err => console.error('[WA] Status trigger auto-connect error:', err.message));
-  }
   res.json({ success: true, data: getStatus() });
 });
 
@@ -273,37 +316,104 @@ app.get('/api/session/config', (req, res) => {
 });
 
 app.post('/api/session/config', (req, res) => {
-  const { rememberMe } = req.body;
+  const { rememberMe, engine } = req.body;
   if (typeof rememberMe === 'boolean') {
     sessionManager.setRememberMe(rememberMe);
+  }
+  if (engine) {
+    sessionManager.setWhatsappEngine(engine);
   }
   res.json({ success: true, config: sessionManager.getConfig() });
 });
 
+// ─── API: OpenWA Gateway Specifics ───────────────────────────
+app.get('/api/openwa/status', async (req, res) => {
+  try {
+    const health = await waOpenWA.healthCheck();
+    res.json({
+      success: true,
+      health,
+      status: waOpenWA.getStatus(),
+      config: sessionManager.getConfig().openwa,
+      engine: sessionManager.getConfig().whatsappEngine
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/openwa/config', (req, res) => {
+  const { url, apiKey, sessionName, engine } = req.body || {};
+  if (url || apiKey !== undefined || sessionName) {
+    sessionManager.setOpenWaConfig({ url, apiKey, sessionName });
+    waOpenWA.updateConfig({ apiUrl: url, apiKey, sessionName });
+  }
+  if (engine) {
+    sessionManager.setWhatsappEngine(engine);
+  }
+  broadcastStatus();
+  res.json({
+    success: true,
+    config: sessionManager.getConfig().openwa,
+    engine: sessionManager.getConfig().whatsappEngine,
+    message: 'OpenWA configuration updated successfully'
+  });
+});
+
 // ─── API: WhatsApp ────────────────────────────────────────────
 app.post('/api/connect/whatsapp', async (req, res) => {
-  const { rememberMe } = req.body || {};
+  const { rememberMe, engine } = req.body || {};
   if (typeof rememberMe === 'boolean') {
     sessionManager.setRememberMe(rememberMe);
   } else {
     sessionManager.setRememberMe(true);
   }
+  if (engine) {
+    sessionManager.setWhatsappEngine(engine);
+  }
   sessionManager.setWhatsappAutoConnect(true);
 
-  if (wa.connected) {
-    return res.json({ success: true, message: 'WhatsApp is already connected.', connected: true });
+  const activeWa = getActiveWa();
+
+  if (activeWa.connected) {
+    return res.json({
+      success: true,
+      message: 'WhatsApp is already connected.',
+      connected: true,
+      phone: activeWa.phone
+    });
   }
 
-  const force = !wa.currentQR;
+  const force = !activeWa.currentQR;
   try {
-    await wa.connect(force);
-    const hasCreds = fs.existsSync(path.join(__dirname, 'sessions', 'whatsapp', 'creds.json'));
+    const connResult = await activeWa.connect(force);
     res.json({
       success: true,
-      message: hasCreds ? 'Reconnecting saved session…' : 'WhatsApp started — scan the QR code.',
-      hasCreds,
-      qr: wa.currentQR || null
+      message: 'WhatsApp connection initiated — scan QR or pair via code.',
+      qr: activeWa.currentQR || null,
+      pairingCode: activeWa.pairingCode || null,
+      engine: sessionManager.getConfig().whatsappEngine,
+      ...connResult
     });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message,
+      engine: sessionManager.getConfig().whatsappEngine
+    });
+  }
+});
+
+app.post('/api/whatsapp/pairing-code', async (req, res) => {
+  const { phoneNumber } = req.body;
+  if (!phoneNumber) return res.status(400).json({ success: false, error: 'Phone number is required' });
+  try {
+    const activeWa = getActiveWa();
+    if (typeof activeWa.requestPairingCode !== 'function') {
+      return res.status(400).json({ success: false, error: 'Phone pairing code is available on the OpenWA engine.' });
+    }
+    const result = await activeWa.requestPairingCode(phoneNumber);
+    res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -311,7 +421,8 @@ app.post('/api/connect/whatsapp', async (req, res) => {
 
 app.get('/api/whatsapp/groups', async (req, res) => {
   try {
-    const groups = await wa.getGroups();
+    const activeWa = getActiveWa();
+    const groups = await activeWa.getGroups();
     historyManager.recordTargets('whatsapp', groups);
     res.json({ success: true, groups });
   } catch (err) {
@@ -321,7 +432,8 @@ app.get('/api/whatsapp/groups', async (req, res) => {
 
 app.get('/api/whatsapp/channels', async (req, res) => {
   try {
-    const channels = await wa.getChannels();
+    const activeWa = getActiveWa();
+    const channels = await activeWa.getChannels();
     historyManager.recordTargets('whatsapp', channels);
     res.json({ success: true, channels });
   } catch (err) {
@@ -331,9 +443,10 @@ app.get('/api/whatsapp/channels', async (req, res) => {
 
 app.post('/api/whatsapp/add-channel', async (req, res) => {
   const { input } = req.body;
-  if (!input) return res.status(400).json({ success: false, error: 'Channel link required' });
+  if (!input) return res.status(400).json({ success: false, error: 'Channel link or ID required' });
   try {
-    const channel = await wa.addChannel(input);
+    const activeWa = getActiveWa();
+    const channel = await activeWa.addChannel(input);
     historyManager.recordTargets('whatsapp', [channel]);
     res.json({ success: true, channel });
   } catch (err) {
@@ -343,14 +456,16 @@ app.post('/api/whatsapp/add-channel', async (req, res) => {
 
 app.post('/api/whatsapp/remove-channel', async (req, res) => {
   const { jid } = req.body;
-  wa.removeChannel(jid);
+  const activeWa = getActiveWa();
+  activeWa.removeChannel(jid);
   res.json({ success: true });
 });
 
 app.post('/api/disconnect/whatsapp', async (req, res) => {
   try {
     sessionManager.clearWhatsappSession();
-    await wa.disconnect();
+    const activeWa = getActiveWa();
+    await activeWa.disconnect();
     broadcastStatus();
     res.json({ success: true });
   } catch (err) {
@@ -833,7 +948,7 @@ httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`  📱 On your Phone: http://${ip}:${PORT}`);
   });
   console.log('='.repeat(54));
-  console.log('  ✅ WhatsApp  — QR Code scan (no API key)');
+  console.log('  ✅ WhatsApp  — OpenWA Gateway (Multi-session / QR / Pairing code)');
   console.log('  ✅ Telegram  — Bot token from @BotFather');
   if (ytDlpAvailable) {
     console.log('  ✅ yt-dlp   — Instagram & YouTube downloader');

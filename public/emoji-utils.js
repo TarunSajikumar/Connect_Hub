@@ -601,18 +601,351 @@ function renderEmojiGrid(list) {
   `).join('');
 }
 
+// ============================================================
+// ── Text Styling & Unicode Fancy Fonts Engine ───────────────
+// ============================================================
+
+const FANCY_FONTS = {
+  bold_sans: {
+    name: 'Bold Sans (𝗕𝗼𝗹𝗱)',
+    map: (str) => convertUnicode(str, 0x1D5D4, 0x1D5EE, 0x1D7EC)
+  },
+  bold_serif: {
+    name: 'Bold Serif (𝐁𝐨𝐥𝐝)',
+    map: (str) => convertUnicode(str, 0x1D400, 0x1D41A, 0x1D7CE)
+  },
+  bold_italic: {
+    name: 'Bold Italic (𝑩𝒐𝒍𝒅 𝑰𝒕𝒂𝒍𝒊𝒄)',
+    map: (str) => convertUnicode(str, 0x1D468, 0x1D482, null)
+  },
+  italic: {
+    name: 'Italic (𝘐𝘵𝘢𝘭𝘪𝘤)',
+    map: (str) => convertUnicode(str, 0x1D608, 0x1D622, null)
+  },
+  gothic: {
+    name: 'Gothic (𝕭𝖔𝖑𝖉 𝕲𝖔𝖙𝖍𝖎𝖈)',
+    map: (str) => convertUnicode(str, 0x1D56C, 0x1D586, null)
+  },
+  cursive: {
+    name: 'Script Cursive (𝒞𝓊𝓇𝓈𝒾𝓋ℯ)',
+    map: (str) => convertUnicode(str, 0x1D4D0, 0x1D4EA, null)
+  },
+  bubble: {
+    name: 'Bubble Circle (🅑🅤🅑🅑🅛🅔)',
+    map: (str) => convertBubble(str)
+  },
+  boxed: {
+    name: 'Boxed Square (🄱🄾🅇🄴🄳)',
+    map: (str) => convertBoxed(str)
+  },
+  spaced: {
+    name: 'Wide / Spaced (Ｗｉｄｅ)',
+    map: (str) => convertWide(str)
+  }
+};
+
+function convertUnicode(str, upperBase, lowerBase, numBase) {
+  return str.split('').map(char => {
+    const code = char.charCodeAt(0);
+    if (code >= 65 && code <= 90 && upperBase) {
+      return String.fromCodePoint(upperBase + (code - 65));
+    }
+    if (code >= 97 && code <= 122 && lowerBase) {
+      return String.fromCodePoint(lowerBase + (code - 97));
+    }
+    if (code >= 48 && code <= 57 && numBase) {
+      return String.fromCodePoint(numBase + (code - 48));
+    }
+    return char;
+  }).join('');
+}
+
+function convertBubble(str) {
+  return str.split('').map(char => {
+    const code = char.charCodeAt(0);
+    if (code >= 65 && code <= 90) return String.fromCodePoint(0x1F150 + (code - 65)); // 🅐-🅩
+    if (code >= 97 && code <= 122) return String.fromCodePoint(0x24D0 + (code - 97)); // ⓐ-ⓩ
+    if (code >= 49 && code <= 57) return String.fromCodePoint(0x2460 + (code - 49)); // ①-⑨
+    if (code === 48) return '⓪';
+    return char;
+  }).join('');
+}
+
+function convertBoxed(str) {
+  return str.split('').map(char => {
+    const code = char.charCodeAt(0);
+    if (code >= 65 && code <= 90) return String.fromCodePoint(0x1F130 + (code - 65)); // 🄰-🅉
+    if (code >= 97 && code <= 122) return String.fromCodePoint(0x1F130 + (code - 97));
+    return char;
+  }).join('');
+}
+
+function convertWide(str) {
+  return str.split('').map(char => {
+    const code = char.charCodeAt(0);
+    if (code >= 33 && code <= 126) return String.fromCharCode(code + 65248);
+    if (code === 32) return '　';
+    return char;
+  }).join('');
+}
+
+/**
+ * Apply WhatsApp / Telegram markdown format to selected text
+ * @param {'bold'|'italic'|'strike'|'monospace'|'quote'|'bullet'} format 
+ */
+function applyTextFormat(format) {
+  const textarea = document.getElementById('caption');
+  if (!textarea) return;
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  const selected = text.substring(start, end);
+
+  let replacement = '';
+  let cursorOffset = 0;
+
+  if (format === 'bold') {
+    replacement = selected ? `*${selected}*` : '*bold text*';
+    cursorOffset = selected ? replacement.length : 1;
+  } else if (format === 'italic') {
+    replacement = selected ? `_${selected}_` : '_italic text_';
+    cursorOffset = selected ? replacement.length : 1;
+  } else if (format === 'strike') {
+    replacement = selected ? `~${selected}~` : '~strike text~';
+    cursorOffset = selected ? replacement.length : 1;
+  } else if (format === 'monospace') {
+    replacement = selected ? `\`${selected}\`` : '`code`';
+    cursorOffset = selected ? replacement.length : 1;
+  } else if (format === 'quote') {
+    replacement = selected ? `❝ ${selected} ❞` : '❝ Quote ❞';
+    cursorOffset = selected ? replacement.length : 2;
+  } else if (format === 'bullet') {
+    const target = selected || text;
+    const bulleted = target.split(/\r?\n/).map(l => l.startsWith('• ') ? l : `• ${l}`).join('\n');
+    if (selected) {
+      replacement = bulleted;
+    } else {
+      textarea.value = bulleted;
+      onCaptionInput(textarea);
+      return;
+    }
+  }
+
+  textarea.value = text.substring(0, start) + replacement + text.substring(end);
+  const newPos = start + cursorOffset;
+  textarea.setSelectionRange(newPos, newPos);
+  textarea.focus();
+  onCaptionInput(textarea);
+}
+
+/**
+ * Convert selected text or entire caption to a fancy font style
+ * @param {string} fontKey 
+ */
+function convertTextToFancyFont(fontKey) {
+  const textarea = document.getElementById('caption');
+  if (!textarea) return;
+
+  const font = FANCY_FONTS[fontKey];
+  if (!font) return;
+
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  const selected = text.substring(start, end);
+
+  if (selected) {
+    const transformed = font.map(selected);
+    textarea.value = text.substring(0, start) + transformed + text.substring(end);
+    textarea.setSelectionRange(start + transformed.length, start + transformed.length);
+  } else if (text.trim()) {
+    textarea.value = font.map(text);
+  } else {
+    toast('info', '💡 Type some text first to apply fancy fonts!');
+  }
+
+  textarea.focus();
+  onCaptionInput(textarea);
+  toggleFancyFontPicker(false);
+  toast('success', `✨ Applied ${font.name.split(' ')[0]} font style!`);
+}
+
+/**
+ * Toggle fancy fonts popover
+ * @param {boolean} [forceState] 
+ */
+function toggleFancyFontPicker(forceState) {
+  const popover = document.getElementById('fancy-fonts-popover');
+  const btn = document.getElementById('btn-fancy-font-toggle');
+  if (!popover) return;
+
+  const isVisible = popover.style.display !== 'none';
+  const nextState = forceState !== undefined ? forceState : !isVisible;
+
+  popover.style.display = nextState ? 'block' : 'none';
+  if (btn) btn.classList.toggle('active', nextState);
+
+  if (nextState) {
+    renderFancyFontList();
+  }
+}
+
+/**
+ * Render list of fancy fonts with live preview
+ */
+function renderFancyFontList() {
+  const listEl = document.getElementById('fancy-fonts-list');
+  const textarea = document.getElementById('caption');
+  if (!listEl) return;
+
+  const sampleText = (textarea?.value.trim().slice(0, 24)) || 'Caption Style';
+
+  listEl.innerHTML = Object.entries(FANCY_FONTS).map(([key, font]) => `
+    <button type="button" class="fancy-font-item" onclick="convertTextToFancyFont('${key}')">
+      <span class="fancy-font-name">${font.name}</span>
+      <span class="fancy-font-preview">${font.map(sampleText)}</span>
+    </button>
+  `).join('');
+}
+
+/**
+ * Automatically generate matching trending #hashtags
+ */
+function applyAutoHashtags() {
+  const textarea = document.getElementById('caption');
+  if (!textarea) return;
+
+  const text = textarea.value.trim();
+  if (!text) {
+    toast('info', '💡 Write a caption or title first to generate matching hashtags!');
+    textarea.focus();
+    return;
+  }
+
+  const clean = text.toLowerCase();
+  const tags = new Set(['#Trending', '#Status', '#Viral']);
+
+  if (clean.includes('song') || clean.includes('ormakal') || clean.includes('music') || clean.includes('thammil') || clean.includes('lyrics') || clean.includes('audio')) {
+    tags.add('#Song');
+    tags.add('#LyricalStatus');
+    tags.add('#MusicVibes');
+    tags.add('#MalayalamStatus');
+    tags.add('#ReelsAudio');
+  }
+  if (clean.includes('sale') || clean.includes('discount') || clean.includes('offer') || clean.includes('deal') || clean.includes('shop')) {
+    tags.add('#SpecialOffer');
+    tags.add('#MegaSale');
+    tags.add('#Discount');
+    tags.add('#LimitedDeal');
+  }
+  if (clean.includes('love') || clean.includes('heart') || clean.includes('romance')) {
+    tags.add('#LoveStatus');
+    tags.add('#Feelings');
+    tags.add('#RomanticVibes');
+  }
+  if (clean.includes('sad') || clean.includes('alone') || clean.includes('broken')) {
+    tags.add('#SadStatus');
+    tags.add('#Heartbreak');
+    tags.add('#Emotional');
+  }
+  if (clean.includes('news') || clean.includes('alert') || clean.includes('launch') || clean.includes('update')) {
+    tags.add('#BreakingNews');
+    tags.add('#NewUpdate');
+    tags.add('#OfficialAnnouncement');
+  }
+
+  tags.add('#InstagramReels');
+  tags.add('#WhatsAppStatus');
+
+  const tagString = Array.from(tags).slice(0, 6).join(' ');
+  textarea.value = `${text}\n\n${tagString}`;
+  onCaptionInput(textarea);
+  toast('success', '🏷️ Matching #hashtags generated and added!');
+}
+
+/**
+ * One-Click AI Auto-Style Presets
+ * @param {'smart'|'viral'|'music'|'promo'|'aesthetic'|'whatsapp'|'quotes'} presetName 
+ */
+function applyAutoStylePreset(presetName) {
+  const textarea = document.getElementById('caption');
+  if (!textarea) return;
+
+  let text = textarea.value.trim();
+  if (!text) {
+    text = 'Your Caption Here';
+  }
+
+  // Strip existing decorative dividers to prevent double formatting
+  text = text.replace(/^[🔥🎵🚨✨❝*#\s─═━⋆⋅☆\n]+/, '')
+             .replace(/[🔥🎵🚨✨❞*#\s─═━⋆⋅☆\n]+$/, '')
+             .split('\n')[0].trim();
+
+  let formatted = '';
+
+  if (presetName === 'smart') {
+    const clean = text.toLowerCase();
+    if (clean.includes('song') || clean.includes('music') || clean.includes('ormakal') || clean.includes('lyrics') || clean.includes('melody') || clean.includes('thammil')) {
+      presetName = 'music';
+    } else if (clean.includes('sale') || clean.includes('discount') || clean.includes('offer') || clean.includes('deal') || clean.includes('alert')) {
+      presetName = 'promo';
+    } else if (clean.includes('quote') || clean.includes('love') || clean.includes('sad') || clean.includes('life')) {
+      presetName = 'quotes';
+    } else {
+      presetName = 'viral';
+    }
+  }
+
+  switch (presetName) {
+    case 'viral':
+      formatted = `🔥 ─── 【 ${text.toUpperCase()} 】 ─── 🔥\n\n✨ Best Quality Status · Watch till end! ✨\n\n👇 Save & Share with Friends ❤️\n#Trending #Viral #Explore #Reels #WhatsAppStatus`;
+      break;
+    case 'music':
+      formatted = `🎵 ─── ⋆⋅☆⋅⋆ ─── 🎵\n\n🎧 *${text}* ✨\n\n💫 Best with Headphones · Feel the Vibe 🍂\n\n#Song #MusicVibes #MalayalamStatus #Lyrical #Trending`;
+      break;
+    case 'promo':
+      formatted = `🚨 *SPECIAL BROADCAST: ${text.toUpperCase()}* 🚨\n\n👉 Exclusive updates live now! ⚡\n\n🔗 Tap the link below to get started 👇\n⏳ Limited Time Offer 🏷️\n\n#SpecialOffer #Update #Alert #Trending`;
+      break;
+    case 'aesthetic':
+      formatted = `✧･ﾟ: *✧･ﾟ:*  ${text}  *:･ﾟ✧*:･ﾟ✧\n\n🌿 Peace & Vibes ✨\n#Aesthetic #Mood #DailyVibes`;
+      break;
+    case 'whatsapp':
+      formatted = `*📢 ${text}*\n\n• ✅ Original High Quality\n• ⚡ Instant Share\n• 💬 Broadcasted to WhatsApp & Telegram\n\n#WhatsAppStatus #DailyUpdate`;
+      break;
+    case 'quotes':
+      formatted = `❝ ${text} ❞\n\n✨ True Feelings · Save & Share ❤️\n#Quotes #Feelings #Vibes #DailyQuotes`;
+      break;
+    default:
+      formatted = `🔥 ${text} ✨\n\n#Trending #Status`;
+  }
+
+  textarea.value = formatted;
+  onCaptionInput(textarea);
+  toast('success', `🪄 Applied "${presetName.toUpperCase()}" auto-style preset with emojis!`);
+}
+
 // Global initialization
 document.addEventListener('DOMContentLoaded', () => {
   renderSmartEmojiSuggestions('');
   
-  // Close emoji picker if clicking outside
+  // Close popovers if clicking outside
   document.addEventListener('click', (e) => {
-    const popover = document.getElementById('emoji-picker-popover');
-    const toggleBtn = document.getElementById('btn-emoji-picker-toggle');
-    if (popover && popover.style.display !== 'none') {
-      if (!popover.contains(e.target) && !toggleBtn?.contains(e.target)) {
-        popover.style.display = 'none';
-        if (toggleBtn) toggleBtn.classList.remove('active');
+    const emojiPop = document.getElementById('emoji-picker-popover');
+    const emojiBtn = document.getElementById('btn-emoji-picker-toggle');
+    if (emojiPop && emojiPop.style.display !== 'none') {
+      if (!emojiPop.contains(e.target) && !emojiBtn?.contains(e.target)) {
+        emojiPop.style.display = 'none';
+        if (emojiBtn) emojiBtn.classList.remove('active');
+      }
+    }
+
+    const fontPop = document.getElementById('fancy-fonts-popover');
+    const fontBtn = document.getElementById('btn-fancy-font-toggle');
+    if (fontPop && fontPop.style.display !== 'none') {
+      if (!fontPop.contains(e.target) && !fontBtn?.contains(e.target)) {
+        fontPop.style.display = 'none';
+        if (fontBtn) fontBtn.classList.remove('active');
       }
     }
   });
@@ -628,5 +961,11 @@ window.EmojiEngine = {
   autoEnhanceCaptionEmojis,
   toggleEmojiPicker,
   switchEmojiCategory,
-  filterEmojiPicker
+  filterEmojiPicker,
+  applyTextFormat,
+  convertTextToFancyFont,
+  toggleFancyFontPicker,
+  applyAutoHashtags,
+  applyAutoStylePreset
 };
+

@@ -10,3 +10,5 @@ sessions/openwa/*
 !sessions/openwa/saved_channels.json
 sessions/cookies.txt
 .env
+yt-dlp
+yt-dlp.exe

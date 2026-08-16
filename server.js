@@ -134,24 +134,35 @@ function getCookieFilePath() {
   return null;
 }
 
-// ─── yt-dlp availability check ──────────────────────────────
+// ─── yt-dlp discovery & dynamic resolver ────────────────────
 let ytDlpAvailable = false;
 let ytDlpCmd = 'yt-dlp';
-try {
-  execSync('yt-dlp --version', { stdio: 'pipe' });
-  ytDlpAvailable = true;
-  console.log('  ✅ yt-dlp   — Media downloader ready');
-} catch (e) {
+
+function resolveYtDlpBinary() {
   const localLinuxBin = path.join(__dirname, 'yt-dlp');
   const localWinBin = path.join(__dirname, 'yt-dlp.exe');
 
   if (fs.existsSync(localLinuxBin)) {
+    try { fs.chmodSync(localLinuxBin, 0o755); } catch(e) {}
     ytDlpCmd = localLinuxBin;
     ytDlpAvailable = true;
-  } else if (fs.existsSync(localWinBin)) {
+    return true;
+  }
+  if (fs.existsSync(localWinBin)) {
     ytDlpCmd = localWinBin;
     ytDlpAvailable = true;
-  } else {
+    return true;
+  }
+
+  // Check system PATH
+  try {
+    execSync('yt-dlp --version', { stdio: 'pipe' });
+    ytDlpCmd = 'yt-dlp';
+    ytDlpAvailable = true;
+    return true;
+  } catch (e) {}
+
+  if (process.platform === 'win32') {
     const windowsPaths = [
       path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
       path.join(process.env.USERPROFILE || '', 'AppData', 'Local', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
@@ -161,25 +172,23 @@ try {
       if (fs.existsSync(p)) {
         ytDlpCmd = p;
         ytDlpAvailable = true;
-        break;
+        return true;
       }
     }
   }
 
-  // Auto-download yt-dlp executable on Linux cloud hosting if missing
-  if (!ytDlpAvailable && process.platform === 'linux') {
-    try {
-      console.log('  📥 [Setup] Downloading yt-dlp binary for Linux hosting…');
-      execSync(`curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o "${localLinuxBin}" && chmod +x "${localLinuxBin}"`, { stdio: 'ignore' });
-      if (fs.existsSync(localLinuxBin)) {
-        ytDlpCmd = localLinuxBin;
-        ytDlpAvailable = true;
-        console.log('  ✅ yt-dlp   — Downloaded & ready for Linux cloud environment');
-      }
-    } catch (dlErr) {
-      console.error('  ⚠️ [Setup] Could not auto-download yt-dlp binary:', dlErr.message);
+  return false;
+}
+
+if (resolveYtDlpBinary()) {
+  console.log(`  ✅ yt-dlp   — Media downloader ready (${ytDlpCmd})`);
+} else {
+  console.log('  ⏳ yt-dlp   — Initializing binary discovery…');
+  import('./setup-ytdlp.js').then(() => {
+    if (resolveYtDlpBinary()) {
+      console.log(`  ✅ yt-dlp   — Ready (${ytDlpCmd})`);
     }
-  }
+  }).catch(e => console.warn('  ⚠️ yt-dlp setup note:', e.message));
 }
 
 // ─── File Upload (multer) ────────────────────────────────────

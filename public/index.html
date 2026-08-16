@@ -266,16 +266,22 @@
         <input type="file" id="file-input" style="display:none" accept="image/*,video/*,audio/*,.pdf,.zip,.rar,.mp3,.mp4,.mov,.mkv" onchange="handleFileSelect(event)"/>
       </div>
 
-      <!-- Caption Box -->
+      <!-- Caption Box with Text Styler & Smart Emoji Suite -->
       <div class="caption-section">
         <div class="caption-header">
           <div class="caption-label-group">
             <label for="caption">Caption / Broadcast Message</label>
-            <span class="caption-sub">Smart emojis suggested live as you type</span>
+            <span class="caption-sub">Smart emojis &amp; auto text styles generated live</span>
           </div>
           <div class="caption-header-actions">
+            <button type="button" class="btn-emoji-tool primary-tool" id="btn-auto-style" onclick="applyAutoStylePreset('smart')" title="Auto-format text with matching typography, headers and emojis">
+              🪄 Auto-Style
+            </button>
             <button type="button" class="btn-emoji-tool" id="btn-auto-emoji" onclick="autoEnhanceCaptionEmojis()" title="Intelligently insert matching emojis across your text">
               ✨ Auto-Emoji
+            </button>
+            <button type="button" class="btn-emoji-tool" id="btn-fancy-font-toggle" onclick="toggleFancyFontPicker()" title="Transform text into fancy aesthetic fonts">
+              𝓕 Fonts
             </button>
             <button type="button" class="btn-emoji-tool" id="btn-emoji-picker-toggle" onclick="toggleEmojiPicker()" title="Browse all emojis">
               😊 Emojis
@@ -284,8 +290,34 @@
           </div>
         </div>
 
+        <!-- Quick Formatting Ribbon -->
+        <div class="text-format-ribbon">
+          <button type="button" class="format-btn" onclick="applyTextFormat('bold')" title="Bold (*text*)"><b>B</b></button>
+          <button type="button" class="format-btn" onclick="applyTextFormat('italic')" title="Italic (_text_)"><i>I</i></button>
+          <button type="button" class="format-btn" onclick="applyTextFormat('strike')" title="Strikethrough (~text~)"><s>S</s></button>
+          <button type="button" class="format-btn" onclick="applyTextFormat('monospace')" title="Monospace (`code`)"><code>M</code></button>
+          <button type="button" class="format-btn" onclick="applyTextFormat('quote')" title="Quote format">❝ ❞</button>
+          <button type="button" class="format-btn" onclick="applyTextFormat('bullet')" title="Bullet list">• List</button>
+          <button type="button" class="format-btn" onclick="applyAutoHashtags()" title="Generate relevant #hashtags">#️⃣ #Tags</button>
+          <div class="ribbon-divider"></div>
+          <span class="ribbon-hint">💡 Select text to format or style all</span>
+        </div>
+
         <div class="caption-box-wrapper">
-          <textarea id="caption" class="caption-area" placeholder="Write caption or broadcast text... (e.g. 'Huge sale live now! Check link below 🔥')" maxlength="2200" oninput="onCaptionInput(this)"></textarea>
+          <textarea id="caption" class="caption-area" placeholder="Write caption or broadcast text... (e.g. 'tammil thammil ormakal song' or 'Huge sale live now 🔥')" maxlength="2200" oninput="onCaptionInput(this)"></textarea>
+        </div>
+
+        <!-- Auto-Style Preset Chips -->
+        <div class="auto-style-chips-row">
+          <span class="style-chips-label">🪄 Style Presets:</span>
+          <div class="style-chips-scroll">
+            <button type="button" class="style-chip-btn" onclick="applyAutoStylePreset('viral')" title="High-engagement viral hook formatting">🔥 Viral Hook</button>
+            <button type="button" class="style-chip-btn" onclick="applyAutoStylePreset('music')" title="Lyrical music & reel vibes format">🎵 Music Vibe</button>
+            <button type="button" class="style-chip-btn" onclick="applyAutoStylePreset('promo')" title="Bold broadcast announcement format">📢 Broadcast Promo</button>
+            <button type="button" class="style-chip-btn" onclick="applyAutoStylePreset('aesthetic')" title="Elegant aesthetic & minimal styling">✨ Aesthetic</button>
+            <button type="button" class="style-chip-btn" onclick="applyAutoStylePreset('whatsapp')" title="Clean WhatsApp bold & bullet styling">💬 WhatsApp Bold</button>
+            <button type="button" class="style-chip-btn" onclick="applyAutoStylePreset('quotes')" title="Lyrical / inspirational quote format">❝ Quote / Status</button>
+          </div>
         </div>
 
         <!-- Live Smart Contextual Emoji Suggestions Bar -->
@@ -299,14 +331,26 @@
           </div>
         </div>
 
+        <!-- Fancy Fonts Popover -->
+        <div class="fancy-fonts-popover" id="fancy-fonts-popover" style="display:none">
+          <div class="fancy-fonts-header">
+            <span class="fancy-fonts-title">𝓕 Fancy Font Generator</span>
+            <button type="button" class="btn-close-emoji-picker" onclick="toggleFancyFontPicker(false)">✕</button>
+          </div>
+          <div class="fancy-fonts-list" id="fancy-fonts-list">
+            <!-- Dynamically populated with previews -->
+          </div>
+        </div>
+
         <!-- Categorized Emoji Picker Popover -->
         <div class="emoji-picker-popover" id="emoji-picker-popover" style="display:none">
           <div class="emoji-picker-header">
-            <input type="text" id="emoji-search-input" class="emoji-search-input" placeholder="🔍 Search emojis (e.g. fire, rocket, love, money)..." oninput="filterEmojiPicker(this.value)" />
+            <input type="text" id="emoji-search-input" class="emoji-search-input" placeholder="🔍 Search emojis (e.g. fire, song, love, rocket)..." oninput="filterEmojiPicker(this.value)" />
             <button type="button" class="btn-close-emoji-picker" onclick="toggleEmojiPicker(false)">✕</button>
           </div>
           <div class="emoji-category-tabs">
             <button type="button" class="emoji-cat-tab active" data-cat="popular" onclick="switchEmojiCategory('popular')">🔥 Hot</button>
+            <button type="button" class="emoji-cat-tab" data-cat="music" onclick="switchEmojiCategory('music')">🎵 Music</button>
             <button type="button" class="emoji-cat-tab" data-cat="faces" onclick="switchEmojiCategory('faces')">😀 Faces</button>
             <button type="button" class="emoji-cat-tab" data-cat="gestures" onclick="switchEmojiCategory('gestures')">👍 Hands</button>
             <button type="button" class="emoji-cat-tab" data-cat="marketing" onclick="switchEmojiCategory('marketing')">📢 Promo</button>

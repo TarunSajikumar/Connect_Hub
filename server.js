@@ -693,7 +693,7 @@ app.post('/api/download', async (req, res) => {
   // Using timestamp + ID ensures 100% valid ASCII filename across Windows NTFS and Unicode titles
   const outputTemplate = path.join(downloadsDir, `${timestamp}_%(id)s.%(ext)s`);
 
-  const executeYtDlp = (clientProfile = 'android,ios,mweb,web_safari,tv') => {
+  const executeYtDlp = (clientProfile = 'ios,android,mweb,web_safari,tv') => {
     const args = [
       '--no-playlist',
       '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
@@ -796,11 +796,11 @@ app.post('/api/download', async (req, res) => {
   try {
     let dlResult;
     try {
-      dlResult = await executeYtDlp('android,ios,mweb,web_safari,tv');
+      dlResult = await executeYtDlp('ios,android,mweb,web_safari,tv');
     } catch (primaryErr) {
       if (isYouTube && /bot|sign in|confirm you're not a bot|429/i.test(primaryErr.message)) {
         console.log('[Download] YouTube bot challenge detected, attempting secondary client profile...');
-        dlResult = await executeYtDlp('ios,tv_embedded,web_embedded,mweb');
+        dlResult = await executeYtDlp('android,tv_embedded,web_embedded,mweb');
       } else {
         throw primaryErr;
       }

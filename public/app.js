@@ -908,6 +908,10 @@ function resetUploadForm() {
 
   const charCountEl = document.getElementById('char-count');
   if (charCountEl) charCountEl.textContent = '0';
+
+  if (typeof renderSmartEmojiSuggestions === 'function') {
+    renderSmartEmojiSuggestions('');
+  }
 }
 
 function onUploadComplete(results) {
@@ -1449,6 +1453,16 @@ async function useDownloadedFile() {
 
     // Inject into the Upload Content section
     setFile(file);
+
+    // If caption is empty, auto-populate with video title and generate smart emoji suggestions
+    const captionEl = document.getElementById('caption');
+    if (captionEl && !captionEl.value.trim()) {
+      const cleanTitle = displayName.replace(/\.[a-zA-Z0-9]+$/, '').replace(/_/g, ' ');
+      captionEl.value = cleanTitle;
+      if (typeof onCaptionInput === 'function') {
+        onCaptionInput(captionEl);
+      }
+    }
 
     if (useBtn) {
       useBtn.classList.add('used');

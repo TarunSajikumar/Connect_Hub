@@ -269,10 +269,52 @@
       <!-- Caption Box -->
       <div class="caption-section">
         <div class="caption-header">
-          <label for="caption">Caption / Broadcast Message</label>
-          <span class="char-count"><span id="char-count">0</span> / 2200</span>
+          <div class="caption-label-group">
+            <label for="caption">Caption / Broadcast Message</label>
+            <span class="caption-sub">Smart emojis suggested live as you type</span>
+          </div>
+          <div class="caption-header-actions">
+            <button type="button" class="btn-emoji-tool" id="btn-auto-emoji" onclick="autoEnhanceCaptionEmojis()" title="Intelligently insert matching emojis across your text">
+              ✨ Auto-Emoji
+            </button>
+            <button type="button" class="btn-emoji-tool" id="btn-emoji-picker-toggle" onclick="toggleEmojiPicker()" title="Browse all emojis">
+              😊 Emojis
+            </button>
+            <span class="char-count"><span id="char-count">0</span> / 2200</span>
+          </div>
         </div>
-        <textarea id="caption" class="caption-area" placeholder="Write caption or broadcast text..." maxlength="2200" oninput="document.getElementById('char-count').textContent=this.value.length"></textarea>
+
+        <div class="caption-box-wrapper">
+          <textarea id="caption" class="caption-area" placeholder="Write caption or broadcast text... (e.g. 'Huge sale live now! Check link below 🔥')" maxlength="2200" oninput="onCaptionInput(this)"></textarea>
+        </div>
+
+        <!-- Live Smart Contextual Emoji Suggestions Bar -->
+        <div class="emoji-suggestions-bar" id="emoji-suggestions-bar">
+          <div class="emoji-suggest-title">
+            <span class="emoji-suggest-sparkle">💡</span>
+            <span class="emoji-suggest-label" id="emoji-suggest-label">Suggested for your text:</span>
+          </div>
+          <div class="emoji-pills-container" id="emoji-pills-container">
+            <!-- Dynamically populated live -->
+          </div>
+        </div>
+
+        <!-- Categorized Emoji Picker Popover -->
+        <div class="emoji-picker-popover" id="emoji-picker-popover" style="display:none">
+          <div class="emoji-picker-header">
+            <input type="text" id="emoji-search-input" class="emoji-search-input" placeholder="🔍 Search emojis (e.g. fire, rocket, love, money)..." oninput="filterEmojiPicker(this.value)" />
+            <button type="button" class="btn-close-emoji-picker" onclick="toggleEmojiPicker(false)">✕</button>
+          </div>
+          <div class="emoji-category-tabs">
+            <button type="button" class="emoji-cat-tab active" data-cat="popular" onclick="switchEmojiCategory('popular')">🔥 Hot</button>
+            <button type="button" class="emoji-cat-tab" data-cat="faces" onclick="switchEmojiCategory('faces')">😀 Faces</button>
+            <button type="button" class="emoji-cat-tab" data-cat="gestures" onclick="switchEmojiCategory('gestures')">👍 Hands</button>
+            <button type="button" class="emoji-cat-tab" data-cat="marketing" onclick="switchEmojiCategory('marketing')">📢 Promo</button>
+            <button type="button" class="emoji-cat-tab" data-cat="objects" onclick="switchEmojiCategory('objects')">💡 Ideas</button>
+            <button type="button" class="emoji-cat-tab" data-cat="symbols" onclick="switchEmojiCategory('symbols')">✨ Symbols</button>
+          </div>
+          <div class="emoji-picker-grid" id="emoji-picker-grid"></div>
+        </div>
       </div>
 
       <!-- Targets Summary Bar -->

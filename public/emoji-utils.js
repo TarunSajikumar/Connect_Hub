@@ -5,7 +5,7 @@
 
 /**
  * Extensive Contextual Keyword-to-Emoji Knowledge Dictionary
- * Supports exact words, prefixes, phrases, and emotional intents
+ * Supports exact words, prefixes, phrases, regional keywords, and emotional intents
  */
 const EMOJI_DICTIONARY = {
   // Greetings & Welcomes
@@ -19,6 +19,32 @@ const EMOJI_DICTIONARY = {
   'gn': ['🌙', '✨'],
   'bye': ['👋', '💨'],
   'goodbye': ['👋', '✈️'],
+
+  // Music, Lyrics, Songs & Audio (including Malayalam / Indian keywords)
+  'song': ['🎵', '🎶', '🎤', '🎧'],
+  'songs': ['🎵', '🎶', '🎼'],
+  'music': ['🎵', '🎶', '🎧', '🎸'],
+  'lyrics': ['📝', '🎵', '✍️', '✨'],
+  'lyric': ['📝', '🎵', '✨'],
+  'audio': ['🔊', '🎵', '🎙️', '📻'],
+  'voice': ['🎙️', '🗣️', '🔊'],
+  'sing': ['🎤', '🎶', '✨'],
+  'singer': ['🎤', '🌟', '🎶'],
+  'ormakal': ['💭', '💫', '🍂', '❤️'],
+  'ormakalil': ['💭', '🥀', '✨'],
+  'thammil': ['🤫', '💭', '🥀', '💫'],
+  'mounam': ['🤫', '💭', '🥀', '💫'],
+  'sneham': ['❤️', '💖', '🥰', '🌹'],
+  'pranayam': ['❤️', '🌹', '💑', '✨'],
+  'paattu': ['🎵', '🎶', '🎤'],
+  'gana': ['🎵', '🎶', '📻'],
+  'tune': ['🎵', '🎹', '🎶'],
+  'beat': ['🥁', '🎧', '🔥'],
+  'bass': ['🔊', '🎧', '⚡'],
+  'vibe': ['✨', '💫', '🌴', '🔥'],
+  'vibes': ['✨', '💫', '🔥'],
+  'status': ['📱', '💫', '✨', '🔥'],
+  'story': ['📖', '📱', '✨'],
 
   // Excitement & Trending
   'fire': ['🔥', '💥', '⚡'],
@@ -126,6 +152,8 @@ const EMOJI_DICTIONARY = {
   'meme': ['🐸', '😂', '🖼️'],
   'sad': ['😢', '💔', '🥺'],
   'cry': ['😭', '😢', '🥺'],
+  'alone': ['🥀', '💔', '🌧️'],
+  'pain': ['💔', '🥀', '🥺'],
   'thinking': ['🤔', '💭', '🧐'],
   'idea': ['💡', '🧠', '✨'],
   'mindblown': ['🤯', '💥', '⚡'],
@@ -135,15 +163,13 @@ const EMOJI_DICTIONARY = {
   // Tech, Media & Content
   'video': ['🎬', '🎥', '📹'],
   'reel': ['🎬', '📱', '🎥'],
+  'reels': ['🎬', '📱', '🔥'],
   'short': ['🎬', '⚡', '📱'],
+  'shorts': ['🎬', '⚡', '📱'],
   'photo': ['📸', '📷', '🖼️'],
   'picture': ['🖼️', '📸', '🎨'],
   'image': ['🖼️', '📸', '🎨'],
   'media': ['🎬', '📁', '📸'],
-  'music': ['🎵', '🎶', '🎧'],
-  'song': ['🎵', '🎤', '🎶'],
-  'audio': ['🔊', '🎵', '🎙️'],
-  'voice': ['🎙️', '🗣️', '🔊'],
   'movie': ['🍿', '🎬', '🎥'],
   'game': ['🎮', '🕹️', '👾'],
   'code': ['💻', '👨‍💻', '⚡'],
@@ -216,18 +242,7 @@ const EMOJI_DICTIONARY = {
   'sun': ['☀️', '🌞', '✨'],
   'rain': ['🌧️', '☔', '💧'],
   'star': ['⭐', '🌟', '✨'],
-  'car': ['🚗', '🏎️', '💨'],
-
-  // Attention & Numbers
-  '1': ['1️⃣', '🥇'],
-  '2': ['2️⃣', '🥈'],
-  '3': ['3️⃣', '🥉'],
-  '100': ['💯', '🔥'],
-  'top': ['🔝', '👑', '🥇'],
-  'danger': ['⚠️', '🚨', '⛔'],
-  'stop': ['🛑', '⛔', '✋'],
-  'start': ['🟢', '🚀', '🎬'],
-  'finish': ['🏁', '✅', '🏆'],
+  'car': ['🚗', '🏎️', '💨']
 };
 
 /**
@@ -238,6 +253,11 @@ const CATEGORIZED_EMOJIS = {
     '🔥', '🚀', '💡', '✨', '🎉', '👇', '🎯', '📢', '❤️', '⚡',
     '💯', '🤩', '🌟', '👑', '💥', '📈', '💬', '📱', '🏆', '🎁',
     '🛍️', '🏷️', '💰', '💵', '💸', '👀', '🔗', '✅', '🚨', '⏰'
+  ],
+  music: [
+    '🎵', '🎶', '🎧', '🎤', '🎙️', '🎸', '🎹', '🥁', '🎷', '🎺',
+    '📻', '🎼', '🔊', '🔈', '💿', '📀', '🎬', '📱', '✨', '💫',
+    '❤️', '🥀', '🍂', '💭', '🕺', '💃', '🌟', '🔥', '💖', '🥰'
   ],
   faces: [
     '😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃',
@@ -272,6 +292,7 @@ const CATEGORIZED_EMOJIS = {
  */
 const DEFAULT_STARTER_SUGGESTIONS = [
   { emoji: '🔥', label: 'Trending', keyword: 'fire' },
+  { emoji: '🎵', label: 'Music & Song', keyword: 'song' },
   { emoji: '🚀', label: 'Launch', keyword: 'launch' },
   { emoji: '📢', label: 'Announcement', keyword: 'broadcast' },
   { emoji: '✨', label: 'Exciting', keyword: 'awesome' },
@@ -281,15 +302,98 @@ const DEFAULT_STARTER_SUGGESTIONS = [
   { emoji: '💡', label: 'Idea', keyword: 'idea' },
   { emoji: '❤️', label: 'Love', keyword: 'love' },
   { emoji: '💰', label: 'Deals & Offers', keyword: 'money' },
-  { emoji: '⚡', label: 'Instant', keyword: 'fast' },
-  { emoji: '✅', label: 'Verified', keyword: 'check' }
+  { emoji: '⚡', label: 'Instant', keyword: 'fast' }
 ];
+
+// ============================================================
+// Unicode Fancy Font Converter Maps
+// ============================================================
+const FONT_MAPS = {
+  bold_sans: {
+    upper: '𝗔𝗕𝗖𝗗𝗘𝗙𝗚𝗛𝗜𝗝𝗞𝗟𝗠𝗡𝗢𝗣𝗤𝗥𝗦𝗧𝗨𝗩𝗪𝗫𝗬𝗭',
+    lower: '𝗮𝗯𝗰𝗱𝗲𝗳𝗴𝗵𝗶𝗷𝗸𝗹𝗺𝗻𝗼𝗽𝗾𝗿𝘀𝘁𝘂𝘃𝘄𝘅𝘆𝘇',
+    digits: '𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵'
+  },
+  bold_serif: {
+    upper: '𝐀𝐁𝐂𝐃𝐄𝐅𝐆𝐇𝐈𝐉𝐊𝐋𝐌𝐍𝐎𝐏𝐐𝐑𝐒𝐓𝐔𝐕𝐖𝐗𝐘𝐙',
+    lower: '𝐚𝐛𝐜𝐝𝐞𝐟𝐠𝐡𝐢𝐣𝐤𝐥𝐦𝐧𝐨𝐩𝐪𝐫𝐬𝐭𝐮𝐯𝐰𝐱𝐲𝐳',
+    digits: '𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗'
+  },
+  italic: {
+    upper: '𝘈𝘉𝘊𝘋𝘌𝘍𝘎𝘏𝘐𝘑𝘒𝘓𝘔𝘕𝘖𝘗𝘘𝘙𝘚𝘛𝘜𝘝𝘞𝘟𝘠𝘡',
+    lower: '𝘢𝘣𝘤𝘥𝘦𝘧𝘨𝘩𝘪𝘫𝘬𝘭𝘮𝘯𝘰𝘱𝘲𝘳𝘴𝘵𝘶𝘷𝘸𝘹𝘺𝘻',
+    digits: '0123456789'
+  },
+  gothic_bold: {
+    upper: '𝕬𝕭𝕮𝕯𝕰𝕱𝕲𝕳𝕴𝕵𝕶𝕷𝕸𝕹𝕺𝕻𝕼𝕽𝕾𝕿𝖀𝖁𝖂𝖃𝖄𝖅',
+    lower: '𝖆𝖇𝖈𝖉𝖊𝖋𝖌𝖍𝖎𝖏𝖐𝖑𝖒𝖓𝖔𝖕𝖖𝖗𝖘𝖙𝖚𝖛𝖜𝖝𝖞𝖟',
+    digits: '0123456789'
+  },
+  cursive: {
+    upper: '𝒜𝒝𝒞𝒟𝐸𝐹𝒢𝐻𝐼𝒥𝒦𝐿𝑀𝒩𝒪𝒫𝒬𝑅𝒮𝒯𝒰𝒱𝒲𝒳𝒴𝒵',
+    lower: '𝒶𝒷𝒸𝒹𝑒𝒻𝑔𝒽𝒾𝒿𝓀𝓁𝓂𝓃𝑜𝓅𝓆𝓇𝓈𝓉𝓊𝓋𝓌𝓍𝓎𝓏',
+    digits: '0123456789'
+  },
+  bubble: {
+    upper: '🅐🅑🅒🅓🅔🅕🅖🅗🅘🅙🅚🅛🅜🅝🅞🅟🅠🅡🅢🅣🅤🅥🅦🅧🅨🅩',
+    lower: 'ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ',
+    digits: '⓪①②③④⑤⑥⑦⑧⑨'
+  },
+  boxed: {
+    upper: '🄰🄱🄲🄳🄴🄵🄶🄷🄸🄹🄺🄻🄼🄽🄾🄿🅀🅁🅂🅃🅄🅅🅆🅇🅈🅉',
+    lower: '🄰🄱🄲🄳🄴🄵🄶🄷🄸🄹🄺🄻🄼🄽🄾🄿🅀🅁🅂🅃🅄🅅🅆🅇🅈🅉',
+    digits: '0123456789'
+  },
+  spaced: {
+    upper: 'ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ',
+    lower: 'ａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ',
+    digits: '０１２３４５６７８９'
+  }
+};
+
+const FONT_PREVIEW_NAMES = {
+  bold_sans: '𝗕𝗼𝗹𝗱 𝗦𝗮𝗻𝘀',
+  bold_serif: '𝐁𝐨𝐥𝐝 𝐒𝐞𝐫𝐢𝐟',
+  italic: '𝘐𝘵𝘢𝘭𝘪𝘤 𝘚𝘢𝘯𝘴',
+  gothic_bold: '𝕲𝖔𝖙𝖍𝖎𝖈 𝕭𝖔𝖑𝖉',
+  cursive: '𝒞𝓊𝓇𝓈𝒾𝓋ℯ 𝒮𝒸𝓇𝒾𝓅𝓉',
+  bubble: '🅑🅤🅑🅑🅛🅔 🅕🅞🅝🅣',
+  boxed: '🄱🄾🅇🄴🄳 🄵🄾🄽🅃',
+  spaced: 'Ｓｐａｃｅｄ Ｗｉｄｅ'
+};
+
+/**
+ * Convert string to fancy unicode font
+ */
+function toFancyFont(text, fontKey) {
+  const map = FONT_MAPS[fontKey];
+  if (!map) return text;
+
+  const normalUpper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const normalLower = 'abcdefghijklmnopqrstuvwxyz';
+  const normalDigits = '0123456789';
+
+  // Unicode characters can be surrogate pairs (length 2 in JS string), so use Array.from
+  const uArr = Array.from(map.upper);
+  const lArr = Array.from(map.lower);
+  const dArr = Array.from(map.digits);
+
+  return Array.from(text).map(char => {
+    const uIdx = normalUpper.indexOf(char);
+    if (uIdx !== -1 && uArr[uIdx]) return uArr[uIdx];
+
+    const lIdx = normalLower.indexOf(char);
+    if (lIdx !== -1 && lArr[lIdx]) return lArr[lIdx];
+
+    const dIdx = normalDigits.indexOf(char);
+    if (dIdx !== -1 && dArr[dIdx]) return dArr[dIdx];
+
+    return char;
+  }).join('');
+}
 
 /**
  * Get Smart Emoji Suggestions for given text
- * Analyzes the words, emotions, and last typed word to provide top relevant emojis
- * @param {string} text 
- * @returns {Array<{emoji: string, label: string, keyword: string}>}
  */
 function getSmartEmojiSuggestions(text) {
   if (!text || !text.trim()) {
@@ -313,13 +417,12 @@ function getSmartEmojiSuggestions(text) {
     }
   };
 
-  // 1. High Priority: Last word typed (immediate auto-complete suggestion)
+  // 1. High Priority: Last word typed
   const lastWord = rawWords[rawWords.length - 1];
   if (lastWord) {
     if (EMOJI_DICTIONARY[lastWord]) {
       EMOJI_DICTIONARY[lastWord].forEach(e => addSuggestion(e, lastWord, lastWord));
     } else {
-      // Prefix matching for incomplete typing (e.g. "rock" -> rocket)
       for (const [kw, emojis] of Object.entries(EMOJI_DICTIONARY)) {
         if (kw.startsWith(lastWord) && kw !== lastWord && lastWord.length >= 2) {
           emojis.forEach(e => addSuggestion(e, kw, kw));
@@ -328,7 +431,7 @@ function getSmartEmojiSuggestions(text) {
     }
   }
 
-  // 2. Full Context: Scan all words in the message
+  // 2. Full Context: Scan all words in message
   for (let i = rawWords.length - 1; i >= 0; i--) {
     const word = rawWords[i];
     if (EMOJI_DICTIONARY[word]) {
@@ -338,6 +441,8 @@ function getSmartEmojiSuggestions(text) {
 
   // 3. Multi-word phrase matching
   const phraseChecks = [
+    { phrase: 'tammil thammil', emoji: '🎵', label: 'Song' },
+    { phrase: 'ormakal', emoji: '💭', label: 'Memories' },
     { phrase: 'check out', emoji: '👀', label: 'checkout' },
     { phrase: 'link below', emoji: '👇', label: 'link' },
     { phrase: 'click here', emoji: '👇', label: 'click' },
@@ -357,12 +462,12 @@ function getSmartEmojiSuggestions(text) {
     }
   }
 
-  // 4. Fallback: Pad with trending starters if fewer than 6 suggestions
+  // 4. Fallback: Pad with trending starters if fewer than 8 suggestions
   if (suggestions.length < 8) {
     for (const starter of DEFAULT_STARTER_SUGGESTIONS) {
       if (!seenEmojis.has(starter.emoji)) {
         addSuggestion(starter.emoji, starter.label, starter.keyword);
-        if (suggestions.length >= 10) break;
+        if (suggestions.length >= 12) break;
       }
     }
   }
@@ -372,16 +477,14 @@ function getSmartEmojiSuggestions(text) {
 
 /**
  * Automatically enhances caption text with natural, relevant emojis
- * @param {string} text 
- * @returns {string} enriched text
  */
 function autoEnhanceCaptionText(text) {
   if (!text || !text.trim()) return text;
 
   let enriched = text;
 
-  // Keyword rules to decorate
   const decorateRules = [
+    { regex: /\b(song|songs|music|lyrics?|ormakal|thammil)\b/gi, emoji: '🎵' },
     { regex: /\b(launch|launching|launched)\b/gi, emoji: '🚀' },
     { regex: /\b(fire|hot|trending|viral)\b/gi, emoji: '🔥' },
     { regex: /\b(sale|discount|deal|deals|promo)\b/gi, emoji: '🏷️' },
@@ -389,9 +492,8 @@ function autoEnhanceCaptionText(text) {
     { regex: /\b(alert|urgent|important|warning)\b/gi, emoji: '🚨' },
     { regex: /\b(video|reel|shorts?)\b/gi, emoji: '🎬' },
     { regex: /\b(photo|picture|images?)\b/gi, emoji: '📸' },
-    { regex: /\b(music|song|audio)\b/gi, emoji: '🎵' },
     { regex: /\b(winner|win|congrats|congratulations)\b/gi, emoji: '🎉' },
-    { regex: /\b(love|heart)\b/gi, emoji: '❤️' },
+    { regex: /\b(love|heart|sneham)\b/gi, emoji: '❤️' },
     { regex: /\b(click|link|tap|below)\b/gi, emoji: '👇' },
     { regex: /\b(check|checkout)\b/gi, emoji: '👀' },
     { regex: /\b(today|now)\b/gi, emoji: '⚡' },
@@ -403,16 +505,12 @@ function autoEnhanceCaptionText(text) {
   ];
 
   for (const rule of decorateRules) {
-    enriched = enriched.replace(rule.regex, (match) => {
-      // Don't duplicate if emoji is already right next to it
-      return `${match} ${rule.emoji}`;
-    });
+    enriched = enriched.replace(rule.regex, (match) => `${match} ${rule.emoji}`);
   }
 
-  // Clean up any double spaces introduced
   enriched = enriched.replace(/ +/g, ' ').trim();
 
-  // If text has no emoji at start and has excitement, add a leading emoji
+  // If text has no emoji at start, add a leading contextual emoji
   if (!/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu.test(enriched.slice(0, 4))) {
     const mainSuggestions = getSmartEmojiSuggestions(text);
     if (mainSuggestions.length > 0 && mainSuggestions[0].emoji) {
@@ -424,8 +522,197 @@ function autoEnhanceCaptionText(text) {
 }
 
 /**
+ * Generate Smart Hashtags based on text keywords
+ */
+function generateAutoHashtags(text) {
+  if (!text) return '#Trending #Viral #Status';
+
+  const clean = text.toLowerCase();
+  const tags = new Set();
+
+  if (/song|music|lyrics?|ormakal|thammil|mounam|paattu|sing/i.test(clean)) {
+    tags.add('#MalayalamSong');
+    tags.add('#Lyrics');
+    tags.add('#WhatsAppStatus');
+    tags.add('#MusicVibes');
+    tags.add('#ReelsIndia');
+  }
+
+  if (/sale|discount|deal|offer|shop|buy|price|promo/i.test(clean)) {
+    tags.add('#SpecialOffer');
+    tags.add('#Discount');
+    tags.add('#SaleLive');
+    tags.add('#ShopNow');
+  }
+
+  if (/viral|trending|hot|lit|fire|explore/i.test(clean)) {
+    tags.add('#Viral');
+    tags.add('#Trending');
+    tags.add('#ExplorePage');
+    tags.add('#ForYou');
+  }
+
+  if (/love|romance|sneham|pranayam|heart/i.test(clean)) {
+    tags.add('#LoveStatus');
+    tags.add('#RomanticVibes');
+    tags.add('#Feelings');
+  }
+
+  if (/news|update|announcement|alert|important/i.test(clean)) {
+    tags.add('#Announcement');
+    tags.add('#Update');
+    tags.add('#ImportantNews');
+  }
+
+  // Default fallback tags
+  tags.add('#TrendingNow');
+  tags.add('#Status');
+
+  return Array.from(tags).slice(0, 5).join(' ');
+}
+
+/**
+ * Apply auto-style preset templates to the caption
+ */
+function applyAutoStylePreset(presetType) {
+  const textarea = document.getElementById('caption');
+  if (!textarea) return;
+
+  const raw = textarea.value.trim();
+  if (!raw) {
+    if (typeof toast === 'function') toast('info', '💡 Type a title or message first, then pick a style!');
+    textarea.focus();
+    return;
+  }
+
+  // Clean title
+  const cleanTitle = raw.replace(/^[•\-\*\_~❝❞\s]+|[•\-\*\_~❝❞\s]+$/g, '');
+  let formatted = '';
+
+  const isMusic = /song|music|ormakal|thammil|lyric|mounam|paattu|sing/i.test(raw);
+  const isPromo = /sale|discount|offer|deal|launch|promo|buy|shop|price|free/i.test(raw);
+
+  switch (presetType) {
+    case 'smart':
+      if (isMusic) {
+        formatted = `✨ ─── ⋆⋅☆⋅⋆ ─── ✨\n🎵 *${cleanTitle}*\n🎧 Use Headphones for Best Experience\n💫 Share & Save for Later\n\n${generateAutoHashtags(cleanTitle)}`;
+      } else if (isPromo) {
+        formatted = `🚨 *SPECIAL ANNOUNCEMENT* 🚨\n\n👉 *${cleanTitle}*\n⚡ Limited Time Opportunity!\n👇 Click link below to grab now\n\n${generateAutoHashtags(cleanTitle)}`;
+      } else {
+        formatted = `✨ *${cleanTitle}* ✨\n\n👉 Check out the full update below!\n💬 Like, Share & Subscribe\n\n${generateAutoHashtags(cleanTitle)}`;
+      }
+      break;
+
+    case 'viral':
+      formatted = `🔥 ⋆【 ${toFancyFont(cleanTitle, 'bold_sans')} 】⋆ 🔥\n\n👀 Watch till the end & double tap!\n💬 Drop your thoughts below 👇\n\n#Viral #Trending #ExplorePage #FYP`;
+      break;
+
+    case 'music':
+      formatted = `✨ ─── ⋆⋅☆⋅⋆ ─── ✨\n🎵 *${cleanTitle}*\n🎧 Wear Headphones 🎧\n🥀 Feel the music & lyrics\n\n${generateAutoHashtags(cleanTitle)}`;
+      break;
+
+    case 'promo':
+      formatted = `🚨 *LIMITED TIME OFFER* 🚨\n\n👉 *${cleanTitle}*\n🏷️ Best Deal of the Season\n⚡ Act fast before it ends!\n👇 Tap the link below to get yours\n\n#SpecialOffer #SaleLive #ShopNow`;
+      break;
+
+    case 'aesthetic':
+      formatted = `✧･ﾟ: *✧･ﾟ:*  ${toFancyFont(cleanTitle, 'cursive')}  *:･ﾟ✧*:･ﾟ✧\n\n🌸 aesthetic vibes only\n🕊️ save and share with someone special\n\n#aesthetic #vibes #minimal`;
+      break;
+
+    case 'whatsapp':
+      formatted = `*${cleanTitle}*\n\n✅ Verified High Quality\n📢 Broadcast to all members\n👉 More updates coming soon!`;
+      break;
+
+    case 'quotes':
+      formatted = `❝ ${cleanTitle} ❞\n\n💫 Keep moving forward ✨\n\n#DailyQuote #Inspiration #Status`;
+      break;
+
+    default:
+      formatted = autoEnhanceCaptionText(raw);
+  }
+
+  textarea.value = formatted;
+  onCaptionInput(textarea);
+  textarea.focus();
+
+  if (typeof toast === 'function') {
+    toast('success', `🪄 Applied "${presetType}" auto-style preset!`);
+  }
+}
+
+/**
+ * Apply basic formatting (*bold*, _italic_, ~strike~, `code`, quotes, bullets)
+ */
+function applyTextFormat(format) {
+  const textarea = document.getElementById('caption');
+  if (!textarea) return;
+
+  const start = textarea.selectionStart || 0;
+  const end = textarea.selectionEnd || 0;
+  const val = textarea.value;
+
+  const selected = val.substring(start, end);
+  const target = selected || val || 'Text';
+
+  let replacement = '';
+  switch (format) {
+    case 'bold':
+      replacement = `*${target}*`;
+      break;
+    case 'italic':
+      replacement = `_${target}_`;
+      break;
+    case 'strike':
+      replacement = `~${target}~`;
+      break;
+    case 'monospace':
+      replacement = `\`${target}\``;
+      break;
+    case 'quote':
+      replacement = `❝ ${target} ❞`;
+      break;
+    case 'bullet':
+      replacement = target.split('\n').map(l => l.startsWith('• ') ? l : `• ${l}`).join('\n');
+      break;
+    default:
+      replacement = target;
+  }
+
+  if (selected) {
+    textarea.value = val.substring(0, start) + replacement + val.substring(end);
+    textarea.setSelectionRange(start, start + replacement.length);
+  } else {
+    textarea.value = replacement;
+  }
+
+  onCaptionInput(textarea);
+  textarea.focus();
+}
+
+/**
+ * Append generated hashtags to caption
+ */
+function applyAutoHashtags() {
+  const textarea = document.getElementById('caption');
+  if (!textarea) return;
+
+  const current = textarea.value.trim();
+  const tags = generateAutoHashtags(current);
+
+  if (current.includes(tags.split(' ')[0])) {
+    if (typeof toast === 'function') toast('info', 'Hashtags already present');
+    return;
+  }
+
+  textarea.value = current ? `${current}\n\n${tags}` : tags;
+  onCaptionInput(textarea);
+  textarea.focus();
+
+  if (typeof toast === 'function') toast('success', '🏷️ Added smart trending hashtags!');
+}
+
+/**
  * Insert emoji into the #caption textarea at current cursor position
- * @param {string} emoji 
  */
 function insertEmojiIntoCaption(emoji) {
   const textarea = document.getElementById('caption');
@@ -438,20 +725,15 @@ function insertEmojiIntoCaption(emoji) {
   const newText = text.substring(0, start) + emoji + text.substring(end);
   textarea.value = newText;
 
-  // Restore cursor immediately after the inserted emoji
   const newPos = start + emoji.length;
   textarea.setSelectionRange(newPos, newPos);
   textarea.focus();
 
-  // Update char count and refresh suggestions live
-  if (typeof onCaptionInput === 'function') {
-    onCaptionInput(textarea);
-  }
+  onCaptionInput(textarea);
 }
 
 /**
- * Handle live input in caption box: updates char count and renders smart emoji pills
- * @param {HTMLTextAreaElement} textarea 
+ * Handle live input in caption box
  */
 function onCaptionInput(textarea) {
   const countEl = document.getElementById('char-count');
@@ -464,7 +746,6 @@ function onCaptionInput(textarea) {
 
 /**
  * Render smart emoji pills in the UI
- * @param {string} text 
  */
 function renderSmartEmojiSuggestions(text) {
   const container = document.getElementById('emoji-pills-container');
@@ -512,7 +793,6 @@ function autoEnhanceCaptionEmojis() {
 
 /**
  * Toggle the categorized emoji picker popover
- * @param {boolean} [forceState]
  */
 function toggleEmojiPicker(forceState) {
   const popover = document.getElementById('emoji-picker-popover');
@@ -525,6 +805,9 @@ function toggleEmojiPicker(forceState) {
   popover.style.display = nextState ? 'block' : 'none';
   if (btn) btn.classList.toggle('active', nextState);
 
+  // Close fonts popover if open
+  if (nextState) toggleFancyFontPicker(false);
+
   if (nextState) {
     switchEmojiCategory('popular');
     const search = document.getElementById('emoji-search-input');
@@ -536,8 +819,86 @@ function toggleEmojiPicker(forceState) {
 }
 
 /**
+ * Toggle Fancy Font Popover
+ */
+function toggleFancyFontPicker(forceState) {
+  const popover = document.getElementById('fancy-fonts-popover');
+  const btn = document.getElementById('btn-fancy-font-toggle');
+  if (!popover) return;
+
+  const isVisible = popover.style.display !== 'none';
+  const nextState = forceState !== undefined ? forceState : !isVisible;
+
+  popover.style.display = nextState ? 'block' : 'none';
+  if (btn) btn.classList.toggle('active', nextState);
+
+  // Close emoji popover if open
+  if (nextState) toggleEmojiPicker(false);
+
+  if (nextState) {
+    renderFancyFontPreviews();
+  }
+}
+
+/**
+ * Render Fancy Font Previews in Popover
+ */
+function renderFancyFontPreviews() {
+  const listEl = document.getElementById('fancy-fonts-list');
+  const textarea = document.getElementById('caption');
+  if (!listEl) return;
+
+  const text = textarea?.value.trim() || 'Connect Hub Studio';
+  const sample = text.length > 35 ? text.substring(0, 35) + '…' : text;
+
+  listEl.innerHTML = Object.entries(FONT_PREVIEW_NAMES).map(([key, name]) => {
+    const preview = toFancyFont(sample, key);
+    return `
+      <div class="fancy-font-item" onclick="applyFancyFont('${key}')">
+        <span class="fancy-font-name">${name}</span>
+        <span class="fancy-font-preview">${preview}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+/**
+ * Apply selected fancy font style to textarea selection or entire text
+ */
+function applyFancyFont(fontKey) {
+  const textarea = document.getElementById('caption');
+  if (!textarea) return;
+
+  const start = textarea.selectionStart || 0;
+  const end = textarea.selectionEnd || 0;
+  const val = textarea.value;
+
+  const selected = val.substring(start, end);
+  const target = selected || val;
+
+  if (!target.trim()) {
+    if (typeof toast === 'function') toast('info', 'Type some text first');
+    return;
+  }
+
+  const converted = toFancyFont(target, fontKey);
+
+  if (selected) {
+    textarea.value = val.substring(0, start) + converted + val.substring(end);
+    textarea.setSelectionRange(start, start + converted.length);
+  } else {
+    textarea.value = converted;
+  }
+
+  onCaptionInput(textarea);
+  toggleFancyFontPicker(false);
+  textarea.focus();
+
+  if (typeof toast === 'function') toast('success', `✨ Applied ${FONT_PREVIEW_NAMES[fontKey]}!`);
+}
+
+/**
  * Switch category tab in emoji picker
- * @param {string} category 
  */
 function switchEmojiCategory(category) {
   const grid = document.getElementById('emoji-picker-grid');
@@ -552,7 +913,6 @@ function switchEmojiCategory(category) {
 
 /**
  * Filter emoji picker grid with search term
- * @param {string} query 
  */
 function filterEmojiPicker(query) {
   const cleanQ = query.toLowerCase().trim();
@@ -566,14 +926,12 @@ function filterEmojiPicker(query) {
   }
 
   const matched = new Set();
-  // Search dictionary keys
   for (const [kw, emojis] of Object.entries(EMOJI_DICTIONARY)) {
     if (kw.includes(cleanQ)) {
       emojis.forEach(e => matched.add(e));
     }
   }
 
-  // Also include matching emojis from all categories
   Object.values(CATEGORIZED_EMOJIS).flat().forEach(e => {
     if (e.includes(cleanQ)) matched.add(e);
   });
@@ -588,7 +946,6 @@ function filterEmojiPicker(query) {
 
 /**
  * Render grid of clickable emoji buttons
- * @param {string[]} list 
  */
 function renderEmojiGrid(list) {
   const grid = document.getElementById('emoji-picker-grid');
@@ -601,350 +958,26 @@ function renderEmojiGrid(list) {
   `).join('');
 }
 
-// ============================================================
-// ── Text Styling & Unicode Fancy Fonts Engine ───────────────
-// ============================================================
-
-const FANCY_FONTS = {
-  bold_sans: {
-    name: 'Bold Sans (𝗕𝗼𝗹𝗱)',
-    map: (str) => convertUnicode(str, 0x1D5D4, 0x1D5EE, 0x1D7EC)
-  },
-  bold_serif: {
-    name: 'Bold Serif (𝐁𝐨𝐥𝐝)',
-    map: (str) => convertUnicode(str, 0x1D400, 0x1D41A, 0x1D7CE)
-  },
-  bold_italic: {
-    name: 'Bold Italic (𝑩𝒐𝒍𝒅 𝑰𝒕𝒂𝒍𝒊𝒄)',
-    map: (str) => convertUnicode(str, 0x1D468, 0x1D482, null)
-  },
-  italic: {
-    name: 'Italic (𝘐𝘵𝘢𝘭𝘪𝘤)',
-    map: (str) => convertUnicode(str, 0x1D608, 0x1D622, null)
-  },
-  gothic: {
-    name: 'Gothic (𝕭𝖔𝖑𝖉 𝕲𝖔𝖙𝖍𝖎𝖈)',
-    map: (str) => convertUnicode(str, 0x1D56C, 0x1D586, null)
-  },
-  cursive: {
-    name: 'Script Cursive (𝒞𝓊𝓇𝓈𝒾𝓋ℯ)',
-    map: (str) => convertUnicode(str, 0x1D4D0, 0x1D4EA, null)
-  },
-  bubble: {
-    name: 'Bubble Circle (🅑🅤🅑🅑🅛🅔)',
-    map: (str) => convertBubble(str)
-  },
-  boxed: {
-    name: 'Boxed Square (🄱🄾🅇🄴🄳)',
-    map: (str) => convertBoxed(str)
-  },
-  spaced: {
-    name: 'Wide / Spaced (Ｗｉｄｅ)',
-    map: (str) => convertWide(str)
-  }
-};
-
-function convertUnicode(str, upperBase, lowerBase, numBase) {
-  return str.split('').map(char => {
-    const code = char.charCodeAt(0);
-    if (code >= 65 && code <= 90 && upperBase) {
-      return String.fromCodePoint(upperBase + (code - 65));
-    }
-    if (code >= 97 && code <= 122 && lowerBase) {
-      return String.fromCodePoint(lowerBase + (code - 97));
-    }
-    if (code >= 48 && code <= 57 && numBase) {
-      return String.fromCodePoint(numBase + (code - 48));
-    }
-    return char;
-  }).join('');
-}
-
-function convertBubble(str) {
-  return str.split('').map(char => {
-    const code = char.charCodeAt(0);
-    if (code >= 65 && code <= 90) return String.fromCodePoint(0x1F150 + (code - 65)); // 🅐-🅩
-    if (code >= 97 && code <= 122) return String.fromCodePoint(0x24D0 + (code - 97)); // ⓐ-ⓩ
-    if (code >= 49 && code <= 57) return String.fromCodePoint(0x2460 + (code - 49)); // ①-⑨
-    if (code === 48) return '⓪';
-    return char;
-  }).join('');
-}
-
-function convertBoxed(str) {
-  return str.split('').map(char => {
-    const code = char.charCodeAt(0);
-    if (code >= 65 && code <= 90) return String.fromCodePoint(0x1F130 + (code - 65)); // 🄰-🅉
-    if (code >= 97 && code <= 122) return String.fromCodePoint(0x1F130 + (code - 97));
-    return char;
-  }).join('');
-}
-
-function convertWide(str) {
-  return str.split('').map(char => {
-    const code = char.charCodeAt(0);
-    if (code >= 33 && code <= 126) return String.fromCharCode(code + 65248);
-    if (code === 32) return '　';
-    return char;
-  }).join('');
-}
-
-/**
- * Apply WhatsApp / Telegram markdown format to selected text
- * @param {'bold'|'italic'|'strike'|'monospace'|'quote'|'bullet'} format 
- */
-function applyTextFormat(format) {
-  const textarea = document.getElementById('caption');
-  if (!textarea) return;
-
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const text = textarea.value;
-  const selected = text.substring(start, end);
-
-  let replacement = '';
-  let cursorOffset = 0;
-
-  if (format === 'bold') {
-    replacement = selected ? `*${selected}*` : '*bold text*';
-    cursorOffset = selected ? replacement.length : 1;
-  } else if (format === 'italic') {
-    replacement = selected ? `_${selected}_` : '_italic text_';
-    cursorOffset = selected ? replacement.length : 1;
-  } else if (format === 'strike') {
-    replacement = selected ? `~${selected}~` : '~strike text~';
-    cursorOffset = selected ? replacement.length : 1;
-  } else if (format === 'monospace') {
-    replacement = selected ? `\`${selected}\`` : '`code`';
-    cursorOffset = selected ? replacement.length : 1;
-  } else if (format === 'quote') {
-    replacement = selected ? `❝ ${selected} ❞` : '❝ Quote ❞';
-    cursorOffset = selected ? replacement.length : 2;
-  } else if (format === 'bullet') {
-    const target = selected || text;
-    const bulleted = target.split(/\r?\n/).map(l => l.startsWith('• ') ? l : `• ${l}`).join('\n');
-    if (selected) {
-      replacement = bulleted;
-    } else {
-      textarea.value = bulleted;
-      onCaptionInput(textarea);
-      return;
-    }
-  }
-
-  textarea.value = text.substring(0, start) + replacement + text.substring(end);
-  const newPos = start + cursorOffset;
-  textarea.setSelectionRange(newPos, newPos);
-  textarea.focus();
-  onCaptionInput(textarea);
-}
-
-/**
- * Convert selected text or entire caption to a fancy font style
- * @param {string} fontKey 
- */
-function convertTextToFancyFont(fontKey) {
-  const textarea = document.getElementById('caption');
-  if (!textarea) return;
-
-  const font = FANCY_FONTS[fontKey];
-  if (!font) return;
-
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const text = textarea.value;
-  const selected = text.substring(start, end);
-
-  if (selected) {
-    const transformed = font.map(selected);
-    textarea.value = text.substring(0, start) + transformed + text.substring(end);
-    textarea.setSelectionRange(start + transformed.length, start + transformed.length);
-  } else if (text.trim()) {
-    textarea.value = font.map(text);
-  } else {
-    toast('info', '💡 Type some text first to apply fancy fonts!');
-  }
-
-  textarea.focus();
-  onCaptionInput(textarea);
-  toggleFancyFontPicker(false);
-  toast('success', `✨ Applied ${font.name.split(' ')[0]} font style!`);
-}
-
-/**
- * Toggle fancy fonts popover
- * @param {boolean} [forceState] 
- */
-function toggleFancyFontPicker(forceState) {
-  const popover = document.getElementById('fancy-fonts-popover');
-  const btn = document.getElementById('btn-fancy-font-toggle');
-  if (!popover) return;
-
-  const isVisible = popover.style.display !== 'none';
-  const nextState = forceState !== undefined ? forceState : !isVisible;
-
-  popover.style.display = nextState ? 'block' : 'none';
-  if (btn) btn.classList.toggle('active', nextState);
-
-  if (nextState) {
-    renderFancyFontList();
-  }
-}
-
-/**
- * Render list of fancy fonts with live preview
- */
-function renderFancyFontList() {
-  const listEl = document.getElementById('fancy-fonts-list');
-  const textarea = document.getElementById('caption');
-  if (!listEl) return;
-
-  const sampleText = (textarea?.value.trim().slice(0, 24)) || 'Caption Style';
-
-  listEl.innerHTML = Object.entries(FANCY_FONTS).map(([key, font]) => `
-    <button type="button" class="fancy-font-item" onclick="convertTextToFancyFont('${key}')">
-      <span class="fancy-font-name">${font.name}</span>
-      <span class="fancy-font-preview">${font.map(sampleText)}</span>
-    </button>
-  `).join('');
-}
-
-/**
- * Automatically generate matching trending #hashtags
- */
-function applyAutoHashtags() {
-  const textarea = document.getElementById('caption');
-  if (!textarea) return;
-
-  const text = textarea.value.trim();
-  if (!text) {
-    toast('info', '💡 Write a caption or title first to generate matching hashtags!');
-    textarea.focus();
-    return;
-  }
-
-  const clean = text.toLowerCase();
-  const tags = new Set(['#Trending', '#Status', '#Viral']);
-
-  if (clean.includes('song') || clean.includes('ormakal') || clean.includes('music') || clean.includes('thammil') || clean.includes('lyrics') || clean.includes('audio')) {
-    tags.add('#Song');
-    tags.add('#LyricalStatus');
-    tags.add('#MusicVibes');
-    tags.add('#MalayalamStatus');
-    tags.add('#ReelsAudio');
-  }
-  if (clean.includes('sale') || clean.includes('discount') || clean.includes('offer') || clean.includes('deal') || clean.includes('shop')) {
-    tags.add('#SpecialOffer');
-    tags.add('#MegaSale');
-    tags.add('#Discount');
-    tags.add('#LimitedDeal');
-  }
-  if (clean.includes('love') || clean.includes('heart') || clean.includes('romance')) {
-    tags.add('#LoveStatus');
-    tags.add('#Feelings');
-    tags.add('#RomanticVibes');
-  }
-  if (clean.includes('sad') || clean.includes('alone') || clean.includes('broken')) {
-    tags.add('#SadStatus');
-    tags.add('#Heartbreak');
-    tags.add('#Emotional');
-  }
-  if (clean.includes('news') || clean.includes('alert') || clean.includes('launch') || clean.includes('update')) {
-    tags.add('#BreakingNews');
-    tags.add('#NewUpdate');
-    tags.add('#OfficialAnnouncement');
-  }
-
-  tags.add('#InstagramReels');
-  tags.add('#WhatsAppStatus');
-
-  const tagString = Array.from(tags).slice(0, 6).join(' ');
-  textarea.value = `${text}\n\n${tagString}`;
-  onCaptionInput(textarea);
-  toast('success', '🏷️ Matching #hashtags generated and added!');
-}
-
-/**
- * One-Click AI Auto-Style Presets
- * @param {'smart'|'viral'|'music'|'promo'|'aesthetic'|'whatsapp'|'quotes'} presetName 
- */
-function applyAutoStylePreset(presetName) {
-  const textarea = document.getElementById('caption');
-  if (!textarea) return;
-
-  let text = textarea.value.trim();
-  if (!text) {
-    text = 'Your Caption Here';
-  }
-
-  // Strip existing decorative dividers to prevent double formatting
-  text = text.replace(/^[🔥🎵🚨✨❝*#\s─═━⋆⋅☆\n]+/, '')
-             .replace(/[🔥🎵🚨✨❞*#\s─═━⋆⋅☆\n]+$/, '')
-             .split('\n')[0].trim();
-
-  let formatted = '';
-
-  if (presetName === 'smart') {
-    const clean = text.toLowerCase();
-    if (clean.includes('song') || clean.includes('music') || clean.includes('ormakal') || clean.includes('lyrics') || clean.includes('melody') || clean.includes('thammil')) {
-      presetName = 'music';
-    } else if (clean.includes('sale') || clean.includes('discount') || clean.includes('offer') || clean.includes('deal') || clean.includes('alert')) {
-      presetName = 'promo';
-    } else if (clean.includes('quote') || clean.includes('love') || clean.includes('sad') || clean.includes('life')) {
-      presetName = 'quotes';
-    } else {
-      presetName = 'viral';
-    }
-  }
-
-  switch (presetName) {
-    case 'viral':
-      formatted = `🔥 ─── 【 ${text.toUpperCase()} 】 ─── 🔥\n\n✨ Best Quality Status · Watch till end! ✨\n\n👇 Save & Share with Friends ❤️\n#Trending #Viral #Explore #Reels #WhatsAppStatus`;
-      break;
-    case 'music':
-      formatted = `🎵 ─── ⋆⋅☆⋅⋆ ─── 🎵\n\n🎧 *${text}* ✨\n\n💫 Best with Headphones · Feel the Vibe 🍂\n\n#Song #MusicVibes #MalayalamStatus #Lyrical #Trending`;
-      break;
-    case 'promo':
-      formatted = `🚨 *SPECIAL BROADCAST: ${text.toUpperCase()}* 🚨\n\n👉 Exclusive updates live now! ⚡\n\n🔗 Tap the link below to get started 👇\n⏳ Limited Time Offer 🏷️\n\n#SpecialOffer #Update #Alert #Trending`;
-      break;
-    case 'aesthetic':
-      formatted = `✧･ﾟ: *✧･ﾟ:*  ${text}  *:･ﾟ✧*:･ﾟ✧\n\n🌿 Peace & Vibes ✨\n#Aesthetic #Mood #DailyVibes`;
-      break;
-    case 'whatsapp':
-      formatted = `*📢 ${text}*\n\n• ✅ Original High Quality\n• ⚡ Instant Share\n• 💬 Broadcasted to WhatsApp & Telegram\n\n#WhatsAppStatus #DailyUpdate`;
-      break;
-    case 'quotes':
-      formatted = `❝ ${text} ❞\n\n✨ True Feelings · Save & Share ❤️\n#Quotes #Feelings #Vibes #DailyQuotes`;
-      break;
-    default:
-      formatted = `🔥 ${text} ✨\n\n#Trending #Status`;
-  }
-
-  textarea.value = formatted;
-  onCaptionInput(textarea);
-  toast('success', `🪄 Applied "${presetName.toUpperCase()}" auto-style preset with emojis!`);
-}
-
 // Global initialization
 document.addEventListener('DOMContentLoaded', () => {
   renderSmartEmojiSuggestions('');
   
   // Close popovers if clicking outside
   document.addEventListener('click', (e) => {
-    const emojiPop = document.getElementById('emoji-picker-popover');
+    const emojiPopover = document.getElementById('emoji-picker-popover');
     const emojiBtn = document.getElementById('btn-emoji-picker-toggle');
-    if (emojiPop && emojiPop.style.display !== 'none') {
-      if (!emojiPop.contains(e.target) && !emojiBtn?.contains(e.target)) {
-        emojiPop.style.display = 'none';
+    if (emojiPopover && emojiPopover.style.display !== 'none') {
+      if (!emojiPopover.contains(e.target) && !emojiBtn?.contains(e.target)) {
+        emojiPopover.style.display = 'none';
         if (emojiBtn) emojiBtn.classList.remove('active');
       }
     }
 
-    const fontPop = document.getElementById('fancy-fonts-popover');
+    const fontPopover = document.getElementById('fancy-fonts-popover');
     const fontBtn = document.getElementById('btn-fancy-font-toggle');
-    if (fontPop && fontPop.style.display !== 'none') {
-      if (!fontPop.contains(e.target) && !fontBtn?.contains(e.target)) {
-        fontPop.style.display = 'none';
+    if (fontPopover && fontPopover.style.display !== 'none') {
+      if (!fontPopover.contains(e.target) && !fontBtn?.contains(e.target)) {
+        fontPopover.style.display = 'none';
         if (fontBtn) fontBtn.classList.remove('active');
       }
     }
@@ -963,9 +996,8 @@ window.EmojiEngine = {
   switchEmojiCategory,
   filterEmojiPicker,
   applyTextFormat,
-  convertTextToFancyFont,
-  toggleFancyFontPicker,
+  applyAutoStylePreset,
   applyAutoHashtags,
-  applyAutoStylePreset
+  toggleFancyFontPicker,
+  applyFancyFont
 };
-

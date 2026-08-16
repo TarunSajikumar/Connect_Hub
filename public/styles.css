@@ -899,22 +899,14 @@ body {
   border-color: rgba(167,139,250,0.3);
 }
 
-.emoji-picker-empty {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 1.5rem;
-  color: var(--text3);
-  font-size: .8rem;
-}
-
-/* ── Quick Text Formatting Ribbon ── */
+/* ── Text Formatting Ribbon & Auto-Styling Controls ── */
 .text-format-ribbon {
   display: flex;
   align-items: center;
-  gap: .35rem;
+  gap: .3rem;
   padding: .35rem .6rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 8px;
   flex-wrap: wrap;
 }
@@ -923,32 +915,30 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 26px;
-  height: 26px;
+  min-width: 28px;
+  height: 28px;
   padding: 0 .45rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
   border-radius: 5px;
-  color: var(--text1);
-  font-size: .78rem;
-  font-family: inherit;
+  color: var(--text2);
+  font-size: .8rem;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
+  font-family: inherit;
 }
 .format-btn:hover {
-  background: rgba(167, 139, 250, 0.2);
-  border-color: rgba(167, 139, 250, 0.4);
+  background: rgba(167,139,250,0.2);
+  border-color: rgba(167,139,250,0.4);
   color: #fff;
   transform: translateY(-1px);
-}
-.format-btn:active {
-  transform: scale(0.95);
 }
 
 .ribbon-divider {
   width: 1px;
-  height: 16px;
-  background: rgba(255, 255, 255, 0.12);
+  height: 18px;
+  background: rgba(255,255,255,0.12);
   margin: 0 .2rem;
 }
 
@@ -956,47 +946,40 @@ body {
   font-size: .68rem;
   color: var(--text3);
   margin-left: auto;
+  font-weight: 500;
 }
 
 /* ── Auto-Style Preset Chips ── */
 .auto-style-chips-row {
   display: flex;
   align-items: center;
-  gap: .45rem;
-  overflow-x: auto;
-  padding: .15rem 0;
-  scrollbar-width: thin;
+  gap: .55rem;
+  overflow: hidden;
 }
 
 .style-chips-label {
-  font-size: .7rem;
+  font-size: .72rem;
   font-weight: 700;
   color: var(--text3);
-  text-transform: uppercase;
-  letter-spacing: .03em;
   white-space: nowrap;
   flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: .03em;
 }
 
 .style-chips-scroll {
   display: flex;
-  gap: .35rem;
+  gap: .4rem;
   overflow-x: auto;
-  scrollbar-width: thin;
   padding-bottom: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(167,139,250,0.3) rgba(255,255,255,0.02);
 }
-.style-chips-scroll::-webkit-scrollbar,
-.emoji-pills-container::-webkit-scrollbar {
+.style-chips-scroll::-webkit-scrollbar {
   height: 4px;
 }
-.style-chips-scroll::-webkit-scrollbar-track,
-.emoji-pills-container::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-}
-.style-chips-scroll::-webkit-scrollbar-thumb,
-.emoji-pills-container::-webkit-scrollbar-thumb {
-  background: rgba(167, 139, 250, 0.35);
+.style-chips-scroll::-webkit-scrollbar-thumb {
+  background: rgba(167,139,250,0.35);
   border-radius: 4px;
 }
 
@@ -1004,24 +987,25 @@ body {
   display: inline-flex;
   align-items: center;
   gap: .3rem;
-  padding: .25rem .65rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: .28rem .65rem;
+  background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+  border: 1px solid rgba(255,255,255,0.1);
   border-radius: 9999px;
   color: var(--text2);
-  font-size: .72rem;
+  font-size: .73rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
   font-family: inherit;
+  user-select: none;
 }
 .style-chip-btn:hover {
-  background: linear-gradient(135deg, rgba(167, 139, 250, 0.25), rgba(56, 189, 248, 0.25));
-  border-color: rgba(167, 139, 250, 0.5);
+  background: linear-gradient(135deg, rgba(167,139,250,0.25), rgba(56,189,248,0.25));
+  border-color: rgba(167,139,250,0.5);
   color: #fff;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(167, 139, 250, 0.2);
+  box-shadow: 0 3px 10px rgba(124,58,237,0.25);
 }
 .style-chip-btn:active {
   transform: scale(0.96);
@@ -1034,10 +1018,10 @@ body {
   left: 0;
   right: 0;
   background: #0f172a;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255,255,255,0.15);
   border-radius: 12px;
   padding: .85rem;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 20px rgba(167, 139, 250, 0.2);
+  box-shadow: 0 15px 35px rgba(0,0,0,0.6), 0 0 20px rgba(56,189,248,0.2);
   z-index: 100;
   animation: fadeIn 0.18s ease;
 }
@@ -1048,13 +1032,15 @@ body {
   align-items: center;
   margin-bottom: .6rem;
   padding-bottom: .4rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
 .fancy-fonts-title {
-  font-size: .82rem;
+  font-size: .78rem;
   font-weight: 700;
   color: #c4b5fd;
+  text-transform: uppercase;
+  letter-spacing: .03em;
 }
 
 .fancy-fonts-list {
@@ -1065,40 +1051,44 @@ body {
   overflow-y: auto;
   padding-right: 4px;
 }
+.fancy-fonts-list::-webkit-scrollbar {
+  width: 4px;
+}
+.fancy-fonts-list::-webkit-scrollbar-thumb {
+  background: rgba(167,139,250,0.35);
+  border-radius: 4px;
+}
 
 .fancy-font-item {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .75rem;
-  padding: .5rem .75rem;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  color: var(--text1);
+  flex-direction: column;
+  gap: .15rem;
+  padding: .45rem .65rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
-  text-align: left;
 }
 .fancy-font-item:hover {
-  background: rgba(167, 139, 250, 0.15);
-  border-color: rgba(167, 139, 250, 0.35);
+  background: rgba(167,139,250,0.15);
+  border-color: rgba(167,139,250,0.4);
   transform: translateX(3px);
 }
 
 .fancy-font-name {
-  font-size: .75rem;
+  font-size: .65rem;
+  color: var(--text3);
   font-weight: 600;
-  color: var(--text2);
-  white-space: nowrap;
+  text-transform: uppercase;
 }
 
 .fancy-font-preview {
   font-size: .88rem;
   color: #fff;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .targets-summary {

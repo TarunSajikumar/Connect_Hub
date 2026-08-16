@@ -6,9 +6,9 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "bot": "node bot.js",
-    "build": "node setup-ytdlp.js",
-    "postinstall": "node setup-ytdlp.js"
+    "build": "node scripts/setup-ytdlp.mjs",
+    "postinstall": "node scripts/setup-ytdlp.mjs",
+    "bot": "node bot.js"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",

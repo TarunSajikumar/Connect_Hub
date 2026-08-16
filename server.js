@@ -134,61 +134,61 @@ function getCookieFilePath() {
   return null;
 }
 
-// ─── yt-dlp discovery & dynamic resolver ────────────────────
+// ─── yt-dlp availability & version check ────────────────────────
 let ytDlpAvailable = false;
 let ytDlpCmd = 'yt-dlp';
 
-function resolveYtDlpBinary() {
-  const localLinuxBin = path.join(__dirname, 'yt-dlp');
-  const localWinBin = path.join(__dirname, 'yt-dlp.exe');
+const localLinuxBin = path.join(__dirname, 'yt-dlp');
+const localWinBin = path.join(__dirname, 'yt-dlp.exe');
+
+// On Linux / Render cloud hosting, ALWAYS download and prioritize the official standalone binary
+if (process.platform === 'linux') {
+  if (!fs.existsSync(localLinuxBin)) {
+    try {
+      console.log('  📥 [Setup] Downloading latest standalone yt-dlp release for Linux cloud hosting…');
+      execSync(`curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o "${localLinuxBin}" && chmod +x "${localLinuxBin}"`, { stdio: 'pipe' });
+    } catch (e) {
+      console.warn('  ⚠️ [Setup] Could not download standalone yt-dlp binary:', e.message);
+    }
+  }
 
   if (fs.existsSync(localLinuxBin)) {
-    try { fs.chmodSync(localLinuxBin, 0o755); } catch(e) {}
-    ytDlpCmd = localLinuxBin;
-    ytDlpAvailable = true;
-    return true;
+    try {
+      execSync(`chmod +x "${localLinuxBin}"`, { stdio: 'ignore' });
+      const ver = execSync(`"${localLinuxBin}" --version`, { stdio: 'pipe' }).toString().trim();
+      ytDlpCmd = localLinuxBin;
+      ytDlpAvailable = true;
+      console.log(`  ✅ yt-dlp   — Official latest Linux binary ready (v${ver})`);
+    } catch (e) {}
   }
-  if (fs.existsSync(localWinBin)) {
-    ytDlpCmd = localWinBin;
-    ytDlpAvailable = true;
-    return true;
-  }
+}
 
-  // Check system PATH
+// Fallback to system or Windows binary
+if (!ytDlpAvailable) {
   try {
-    execSync('yt-dlp --version', { stdio: 'pipe' });
-    ytDlpCmd = 'yt-dlp';
+    const ver = execSync('yt-dlp --version', { stdio: 'pipe' }).toString().trim();
     ytDlpAvailable = true;
-    return true;
-  } catch (e) {}
-
-  if (process.platform === 'win32') {
-    const windowsPaths = [
-      path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
-      path.join(process.env.USERPROFILE || '', 'AppData', 'Local', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
-      'C:\\Windows\\System32\\yt-dlp.exe'
-    ];
-    for (const p of windowsPaths) {
-      if (fs.existsSync(p)) {
-        ytDlpCmd = p;
-        ytDlpAvailable = true;
-        return true;
+    ytDlpCmd = 'yt-dlp';
+    console.log(`  ✅ yt-dlp   — System binary ready (v${ver})`);
+  } catch (e) {
+    if (fs.existsSync(localWinBin)) {
+      ytDlpCmd = localWinBin;
+      ytDlpAvailable = true;
+    } else if (process.platform === 'win32') {
+      const windowsPaths = [
+        path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
+        path.join(process.env.USERPROFILE || '', 'AppData', 'Local', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
+        'C:\\Windows\\System32\\yt-dlp.exe'
+      ];
+      for (const p of windowsPaths) {
+        if (fs.existsSync(p)) {
+          ytDlpCmd = p;
+          ytDlpAvailable = true;
+          break;
+        }
       }
     }
   }
-
-  return false;
-}
-
-if (resolveYtDlpBinary()) {
-  console.log(`  ✅ yt-dlp   — Media downloader ready (${ytDlpCmd})`);
-} else {
-  console.log('  ⏳ yt-dlp   — Initializing binary discovery…');
-  import('./setup-ytdlp.js').then(() => {
-    if (resolveYtDlpBinary()) {
-      console.log(`  ✅ yt-dlp   — Ready (${ytDlpCmd})`);
-    }
-  }).catch(e => console.warn('  ⚠️ yt-dlp setup note:', e.message));
 }
 
 // ─── File Upload (multer) ────────────────────────────────────

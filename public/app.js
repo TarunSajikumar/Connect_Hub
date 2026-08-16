@@ -1057,10 +1057,10 @@ function updateCookieUI(hasCookies, fileName) {
   if (badge) {
     if (hasCookies) {
       badge.className = 'cookie-status-badge active';
-      badge.textContent = `Active (${fileName || 'cookies.txt'})`;
+      badge.textContent = `Loaded (${fileName || 'cookies.txt'})`;
     } else {
       badge.className = 'cookie-status-badge none';
-      badge.textContent = 'No Cookies';
+      badge.textContent = 'Optional (Not Required)';
     }
   }
   if (clearBtn) {
@@ -1087,7 +1087,7 @@ async function uploadCookieFile(event) {
     const res = await fetch('/api/downloader/cookies', { method: 'POST', body: formData });
     const data = await res.json();
     if (data.success) {
-      toast('success', '✅ Cookies file uploaded! Try downloading the link again.');
+      toast('success', '✅ Cookies uploaded! (improves download reliability)');
       checkDownloaderStatus();
     } else {
       toast('error', data.error || 'Failed to upload cookies');
@@ -1100,11 +1100,11 @@ async function uploadCookieFile(event) {
 }
 
 async function clearCookies() {
-  if (!confirm('Remove uploaded cookies.txt file?')) return;
+  if (!confirm('Remove uploaded cookies?')) return;
   try {
     const res = await api('DELETE', '/api/downloader/cookies');
     if (res.success) {
-      toast('info', 'Removed cookies file');
+      toast('info', 'Cookies removed (downloads still work fine)');
       checkDownloaderStatus();
     }
   } catch (e) {
@@ -1237,10 +1237,16 @@ function onDownloadComplete(data) {
 function showDlError(msg) {
   const errEl = document.getElementById('dl-error');
   if (errEl) {
-    errEl.textContent = '❌ ' + msg;
+    // Handle multi-line error messages (for helpful instructions)
+    const htmlMsg = msg.replace(/\n/g, '<br>').replace(/📺|❌|🔧|1️⃣|2️⃣|3️⃣|4️⃣|⬜/g, match => `<span style="font-size: 1.2em;">${match}</span>`);
+    errEl.innerHTML = htmlMsg;
     errEl.style.display = 'block';
+    errEl.style.whiteSpace = 'pre-wrap';
+    errEl.style.wordWrap = 'break-word';
   }
-  toast('error', msg);
+  // For toast, show first line only to avoid clutter
+  const firstLine = msg.split('\n')[0];
+  toast('error', firstLine);
 }
 
 async function useDownloadedFile() {

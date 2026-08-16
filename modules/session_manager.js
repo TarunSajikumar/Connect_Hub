@@ -1,5 +1,5 @@
 // ============================================================
-// ContentHub — modules/session_manager.js
+// SOCIAL HUB — modules/session_manager.js
 // Persistent Session & Auto-Reconnect Manager
 // ============================================================
 

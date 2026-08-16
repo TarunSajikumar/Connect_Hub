@@ -1,5 +1,5 @@
 // ============================================================
-// ContentHub — modules/scheduler.js
+// SOCIAL HUB — modules/scheduler.js
 // Persistent Broadcast Scheduler & Job Execution Engine
 // ============================================================
 

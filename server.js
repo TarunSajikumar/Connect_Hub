@@ -1,5 +1,5 @@
 // ============================================================
-// ContentHub — server.js
+// SOCIAL HUB — server.js
 // Main Express + WebSocket server
 // ============================================================
 
@@ -577,34 +577,56 @@ app.post('/api/download', async (req, res) => {
   const timestamp = Date.now();
   const outputTemplate = path.join(downloadsDir, `${timestamp}_%(title).80B.%(ext)s`);
 
-  // Build robust yt-dlp execution args
+  // Build robust yt-dlp execution args (NO COOKIES REQUIRED)
   const args = [
     '--no-playlist',
-    '-f', 'b[ext=mp4]/best[ext=mp4]/bestvideo+bestaudio/best',
+    // Format priority: best quality without requiring authentication
+    '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
     '-o', outputTemplate,
     '--no-warnings',
-    '--retries', '5',
-    '--fragment-retries', '5',
+    '--retries', '10',
+    '--fragment-retries', '10',
+    '--skip-unavailable-fragments',  // Skip segments that fail instead of stopping
     '--no-check-certificates',
     '--geo-bypass',
-    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+    '--geo-bypass-country', 'US',
+    // Aggressive headers to appear as browser
+    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     '--add-header', 'Accept-Language: en-US,en;q=0.9',
-    '--referer', isInstagram ? 'https://www.instagram.com/' : 'https://www.youtube.com/'
+    '--add-header', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    '--add-header', 'Sec-Fetch-Dest: document',
+    '--add-header', 'Sec-Fetch-Mode: navigate',
+    '--add-header', 'Sec-Fetch-Site: none',
+    '--add-header', 'Sec-Fetch-User: ?1',
+    '--add-header', 'Cache-Control: max-age=0',
+    '--add-header', 'Upgrade-Insecure-Requests: 1',
+    '--referer', isInstagram ? 'https://www.instagram.com/' : 'https://www.youtube.com/',
+    // Socket timeouts
+    '--socket-timeout', '30'
   ];
 
+  // Instagram specific arguments
   if (isInstagram) {
     args.push('--extractor-args', 'instagram:api_example=1');
   }
 
+  // YouTube specific arguments - no cookies needed
+  if (isYouTube) {
+    // Try to extract age-gated content without authentication
+    args.push('--youtube-skip-dash-manifest');
+    args.push('--compat-opts', 'no-youtube-signature-timestamp');
+  }
+
+  // Optionally use cookies if available (not required)
   const cookiePath = getCookieFilePath();
   if (cookiePath) {
     args.push('--cookies', cookiePath);
-    console.log(`[Download] Using cookie file: ${cookiePath}`);
+    console.log(`[Download] Cookies available and will be used: ${cookiePath}`);
   }
 
   args.push('--print', 'after_move:filepath', cleanUrl);
 
-  console.log(`[Download] Starting: ${cleanUrl}`);
+  console.log(`[Download] Starting (no cookies required): ${cleanUrl}`);
 
   try {
     const filePath = await new Promise((resolve, reject) => {
@@ -688,7 +710,60 @@ app.post('/api/download', async (req, res) => {
     });
 
   } catch (err) {
-    console.warn(`[Download] Primary yt-dlp attempt notice: ${err.message}`);
+    console.warn(`[Download] Download attempt: ${err.message}`);
+
+    const errorMsg = err.message || '';
+    let userFriendlyError = errorMsg;
+
+    // Handle YouTube-specific errors with helpful alternatives
+    if (isYouTube) {
+      if (/404|not found|video unavailable/i.test(errorMsg)) {
+        userFriendlyError = `❌ Video not found or is no longer available.
+
+Possible reasons:
+• Video was deleted by creator
+• Video is private or restricted
+• URL is incorrect
+• Video has been removed due to copyright
+
+Try:
+✓ Check if the URL is correct
+✓ Try a different video
+✓ Wait a few minutes and retry`;
+      } else if (/sign in|login|bot|429|too many|forbidden|403/i.test(errorMsg)) {
+        userFriendlyError = `⚠️ Download limit reached or content requires authentication.
+
+Try these fixes:
+1️⃣ Wait 30 minutes before retrying
+2️⃣ Try a different video
+3️⃣ Upload cookies (optional - helps for age-restricted content)
+4️⃣ Use a VPN to try from different location
+5️⃣ Try again with fresh browser session`;
+      } else if (/age restrict|18|adult|mature/i.test(errorMsg)) {
+        userFriendlyError = `🔞 Video is age-restricted (18+).
+
+Options:
+• Upload cookies from your YouTube account to bypass
+• Video download may require authentication`;
+      }
+    }
+    
+    // Handle Instagram errors
+    else if (isInstagram) {
+      if (/HTTP Error 429|Too Many Requests|rate limit/i.test(errorMsg)) {
+        userFriendlyError = `⏸️ Instagram rate limit hit.
+
+Please wait 30 minutes before trying again.
+Tip: Multiple rapid downloads trigger rate limits.`;
+      } else if (/404|not found|unavailable/i.test(errorMsg)) {
+        userFriendlyError = `❌ Instagram post/reel not found or deleted.
+
+Check if:
+• URL is correct
+• Account is public (private accounts can't be downloaded)
+• Post hasn't been deleted`;
+      }
+    }
 
     // Automatic zero-cookie InstagramDownloader fallback engine
     if (isInstagram) {
@@ -710,11 +785,11 @@ app.post('/api/download', async (req, res) => {
         });
       } catch (fallbackErr) {
         console.error('[Download] Zero-cookie fallback engine error:', fallbackErr.message);
-        return res.status(500).json({ success: false, error: fallbackErr.message });
+        return res.status(500).json({ success: false, error: userFriendlyError || fallbackErr.message });
       }
     }
 
-    res.status(500).json({ success: false, error: err.message });
+    res.status(500).json({ success: false, error: userFriendlyError });
   }
 });
 
@@ -806,7 +881,7 @@ httpServer.on('error', (err) => {
 httpServer.listen(PORT, '0.0.0.0', () => {
   const localIps = getLocalIpAddresses();
   console.log('\n' + '='.repeat(54));
-  console.log('  🚀 ContentHub is running & accessible across Wi-Fi:');
+  console.log('  🚀 SOCIAL HUB is running & accessible across Wi-Fi:');
   console.log('  💻 On this PC:    http://localhost:' + PORT);
   localIps.forEach(ip => {
     console.log(`  📱 On your Phone: http://${ip}:${PORT}`);

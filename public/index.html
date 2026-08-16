@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>ContentHub — Multi-Platform Publisher & Media Studio</title>
+  <title>SOCIAL HUB — Multi-Platform Publisher & Media Studio</title>
   <meta name="description" content="Download, upload, and publish content to WhatsApp & Telegram instantly in original quality."/>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -42,7 +42,7 @@
 <!-- Server Offline Banner -->
 <div class="server-banner" id="server-banner">
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-  <span id="server-banner-text">Connecting to ContentHub server…</span>
+  <span id="server-banner-text">Connecting to SOCIAL HUB server…</span>
 </div>
 
 <!-- Network Offline Banner -->
@@ -57,7 +57,7 @@
     <div class="nav-logo">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="url(#g1)" stroke-width="2.4" stroke-linecap="round"><defs><linearGradient id="g1" x1="0" y1="0" x2="24" y2="24"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
     </div>
-    <span class="nav-title">ContentHub</span>
+    <span class="nav-title">SOCIAL HUB</span>
     <div class="flip-fade-pill">
       <span class="flip-fade-dot"></span>
       <span class="flip-fade-badge" id="flip-fade-badge">PUBLISH</span>
@@ -204,23 +204,24 @@
         💡 Merges video &amp; audio in original quality. Auto-deleted after 30 mins.
       </p>
 
-      <!-- Instagram Cookies / Rate-Limit Controls -->
+      <!-- Optional Cookies / Rate-Limit Bypass (Optional) -->
       <div class="dl-cookies-section">
         <div class="dl-cookies-header" onclick="toggleCookieBox()">
-          <span class="dl-cookies-title">🍪 Instagram Cookies / Anti-429 Bypass</span>
-          <span id="dl-cookies-badge" class="cookie-status-badge none">No Cookies</span>
+          <span class="dl-cookies-title">🍪 Optional: Upload Cookies (For Better Reliability)</span>
+          <span id="dl-cookies-badge" class="cookie-status-badge none">Not Required</span>
         </div>
         <div id="dl-cookies-box" class="dl-cookies-box" style="display:none">
-          <p class="cookie-hint">If Instagram blocks downloads with <strong>HTTP 429</strong>, upload your browser's <code>cookies.txt</code> file (exported via Chrome/Edge extension):</p>
+          <p class="cookie-hint">Downloads work <strong>without cookies</strong> for most videos. Upload cookies to bypass rate limits or download age-restricted content:</p>
           <div class="cookie-upload-row">
             <input type="file" id="cookie-file-input" accept=".txt" style="display:none" onchange="uploadCookieFile(event)"/>
             <button class="btn-cookie-upload" onclick="document.getElementById('cookie-file-input').click()">
-              📁 Upload cookies.txt
+              📁 Upload cookies.txt (Optional)
             </button>
             <button class="btn-cookie-clear" id="btn-cookie-clear" onclick="clearCookies()" style="display:none">
               🗑️ Remove
             </button>
           </div>
+          <p style="font-size: 0.75rem; color: #888; margin-top: 0.5rem;">✓ Downloads work without cookies • Cookies help for restricted content • No cookies = No authentication needed</p>
         </div>
       </div>
     </div>
@@ -631,6 +632,8 @@
 
 </main>
 
+<!-- Emoji Generation System (emojidb.org integration) -->
+<script src="emoji-utils.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

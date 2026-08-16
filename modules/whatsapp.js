@@ -1,5 +1,5 @@
 // ============================================================
-// ContentHub — modules/whatsapp.js
+// SOCIAL HUB — modules/whatsapp.js
 // WhatsApp — QR Code scan (no API key needed)
 // Groups: auto-fetched   |   Channels: auto-detected + manual paste
 // ============================================================

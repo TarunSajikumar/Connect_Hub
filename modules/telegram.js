@@ -1,5 +1,5 @@
 // ============================================================
-// ContentHub — modules/telegram.js
+// SOCIAL HUB — modules/telegram.js
 // Telegram bot integration — free token from @BotFather
 // ============================================================
 

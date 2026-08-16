@@ -1,5 +1,5 @@
 // ============================================================
-// ContentHub — modules/history.js
+// SOCIAL HUB — modules/history.js
 // Persistent Target Connection History Manager
 // Tracks previously connected/selected WhatsApp & Telegram targets
 // ============================================================

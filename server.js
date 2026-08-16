@@ -50,6 +50,7 @@ import HistoryManager from './modules/history.js';
 import SchedulerModule from './modules/scheduler.js';
 import SessionManager from './modules/session_manager.js';
 import InstagramDownloader from './modules/instagram_downloader.js';
+import AIAudioCaptioner from './modules/ai_audio_captioner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -888,6 +889,46 @@ app.get('/api/download/file/:filename', (req, res) => {
     return res.status(404).json({ success: false, error: 'File not found' });
   }
   res.sendFile(filePath);
+});
+
+// ─── API: AI Audio Caption & Speech-to-Text Synthesizer ────────
+app.post('/api/ai/transcribe-caption', async (req, res) => {
+  try {
+    const { transcript, title, style, language, url, filePath } = req.body;
+
+    let mediaMeta = { title: title || '', transcript: transcript || '', detectedLanguage: language || 'auto' };
+
+    // If a URL or local filePath was provided, analyze it
+    if (url) {
+      const meta = await AIAudioCaptioner.extractAudioMetadata(url, ytDlpCmd);
+      mediaMeta = { ...mediaMeta, ...meta };
+    } else if (filePath) {
+      const resolved = path.isAbsolute(filePath) ? filePath : path.join(__dirname, filePath);
+      if (fs.existsSync(resolved)) {
+        const meta = await AIAudioCaptioner.extractAudioMetadata(resolved, ytDlpCmd);
+        mediaMeta = { ...mediaMeta, ...meta };
+      }
+    }
+
+    const synthesis = AIAudioCaptioner.generateCaption({
+      transcript: transcript || mediaMeta.transcript,
+      title: title || mediaMeta.title,
+      style: style || 'smart',
+      language: language || mediaMeta.detectedLanguage
+    });
+
+    res.json({
+      success: true,
+      caption: synthesis.caption,
+      headline: synthesis.headline,
+      hashtags: synthesis.hashtags,
+      detectedType: synthesis.detectedType,
+      audioMeta: mediaMeta
+    });
+  } catch (err) {
+    console.error('[AI Caption] Error:', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // ─── API: Upload ──────────────────────────────────────────────

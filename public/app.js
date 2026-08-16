@@ -1400,6 +1400,8 @@ async function startDownload() {
 function onDownloadComplete(data) {
   state.downloader.currentFilename = data.filename;
   state.downloader.currentMimeType = data.mimeType;
+  window.lastDownloadedFilePath = data.filename;
+  window.lastDownloadedVideoUrl = document.getElementById('dl-url-input')?.value || null;
 
   const resultEl = document.getElementById('dl-result');
   const iconEl = document.getElementById('dl-result-icon');

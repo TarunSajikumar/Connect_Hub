@@ -258,6 +258,9 @@
               <strong id="file-name-display"></strong>
               <span id="file-size-display"></span>
             </div>
+            <button type="button" class="btn-file-action-audio" onclick="event.stopPropagation(); window.AudioCaption.openStudio({ title: state.selectedFile?.name })" title="Extract and transcribe audio to caption">
+              🎙️ AI Audio Caption
+            </button>
             <button class="btn-clear-file" onclick="clearFile(event)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
@@ -274,6 +277,9 @@
             <span class="caption-sub">Smart emojis &amp; auto text styles generated live</span>
           </div>
           <div class="caption-header-actions">
+            <button type="button" class="btn-emoji-tool audio-caption-tool" id="btn-audio-caption" onclick="window.AudioCaption.openStudio()" title="Transcribe audio track and auto-generate AI caption">
+              🎙️ AI Audio Caption
+            </button>
             <button type="button" class="btn-emoji-tool primary-tool" id="btn-auto-style" onclick="applyAutoStylePreset('smart')" title="Auto-format text with matching typography, headers and emojis">
               🪄 Auto-Style
             </button>
@@ -800,8 +806,113 @@
   </div>
 </div>
 
-<!-- Emoji Generation System (emojidb.org integration) -->
+<!-- AI Audio / Video Speech-to-Text & Smart Caption Studio Modal -->
+<div class="modal-backdrop" id="audio-caption-modal" style="display:none">
+  <div class="modal-card audio-studio-modal">
+    <div class="modal-header">
+      <div class="modal-title-group">
+        <div class="studio-badge-pill">🎙️ AI Audio Intelligence</div>
+        <h3 class="modal-title">Audio &amp; Video Speech-to-Caption Studio</h3>
+        <p class="modal-subtitle">Transcribes spoken dialogue, lyrics &amp; audio beats into engaging social captions</p>
+      </div>
+      <button class="btn-modal-close" onclick="window.AudioCaption.closeStudio()">✕</button>
+    </div>
+
+    <div class="modal-body audio-studio-body">
+      <!-- Live Audio Waveform & Mic Control -->
+      <div class="studio-mic-panel">
+        <div class="studio-wave-container" id="studio-audio-wave">
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+        </div>
+        <div class="studio-mic-actions">
+          <button type="button" class="btn-studio-mic" id="btn-studio-mic" onclick="window.AudioCaption.toggleVoiceRecording()">
+            🎙️ Speak / Record Audio
+          </button>
+          <span class="studio-status-text" id="studio-status-text">Ready to analyze audio &amp; speech</span>
+        </div>
+      </div>
+
+      <!-- Spoken Text / Lyrics Box -->
+      <div class="form-group">
+        <div class="studio-label-row">
+          <label for="studio-transcript-input">Audio Transcript / Lyrics / Spoken Words</label>
+          <div class="studio-lang-picker">
+            <span>🌐 Language:</span>
+            <select id="audio-lang-select" class="studio-select" onchange="window.AudioCaption.generateCaptionFromCurrentData()">
+              <option value="auto" selected>Auto-Detect (ML / EN / HI)</option>
+              <option value="ml-IN">Malayalam (മലയാളം)</option>
+              <option value="en-US">English (US)</option>
+              <option value="hi-IN">Hindi (हिन्दी)</option>
+              <option value="ta-IN">Tamil (தமிழ்)</option>
+              <option value="ar-SA">Arabic (العربية)</option>
+              <option value="es-ES">Spanish (Español)</option>
+            </select>
+          </div>
+        </div>
+        <textarea id="studio-transcript-input" class="studio-textarea" placeholder="Spoken words, lyrics, or key message from the audio track..." oninput="window.AudioCaption.generateCaptionFromCurrentData()"></textarea>
+      </div>
+
+      <!-- Style Selection Pills -->
+      <div class="form-group">
+        <label>🎯 Caption Style &amp; Tone</label>
+        <div class="studio-styles-grid">
+          <button type="button" class="studio-style-pill active" data-style="smart" onclick="window.AudioCaption.selectStyle('smart')">
+            🪄 Smart Match
+          </button>
+          <button type="button" class="studio-style-pill" data-style="lyrical" onclick="window.AudioCaption.selectStyle('lyrical')">
+            🎵 Song / Lyrics Vibe
+          </button>
+          <button type="button" class="studio-style-pill" data-style="viral" onclick="window.AudioCaption.selectStyle('viral')">
+            🔥 Viral Hook
+          </button>
+          <button type="button" class="studio-style-pill" data-style="speech_summary" onclick="window.AudioCaption.selectStyle('speech_summary')">
+            🎙️ Speech Highlights
+          </button>
+          <button type="button" class="studio-style-pill" data-style="aesthetic" onclick="window.AudioCaption.selectStyle('aesthetic')">
+            ✨ Aesthetic
+          </button>
+          <button type="button" class="studio-style-pill" data-style="whatsapp" onclick="window.AudioCaption.selectStyle('whatsapp')">
+            💬 WhatsApp Broadcast
+          </button>
+        </div>
+      </div>
+
+      <!-- Generated Caption Live Preview -->
+      <div class="form-group">
+        <div class="studio-label-row">
+          <label for="studio-output-caption">Generated AI Caption Preview</label>
+          <div class="studio-preview-actions">
+            <button type="button" class="btn-studio-mini" onclick="window.AudioCaption.copyStudioCaption()">📋 Copy</button>
+            <button type="button" class="btn-studio-mini primary" id="btn-studio-generate" onclick="window.AudioCaption.generateCaptionFromCurrentData()">🔄 Re-Generate</button>
+          </div>
+        </div>
+        <textarea id="studio-output-caption" class="studio-output-box" placeholder="AI-generated caption will appear here live..."></textarea>
+      </div>
+    </div>
+
+    <div class="modal-footer audio-studio-footer">
+      <button class="btn-modal-secondary" onclick="window.AudioCaption.closeStudio()">Cancel</button>
+      <button class="btn-modal-primary btn-studio-apply" onclick="window.AudioCaption.applyToCaption()">
+        🎉 Apply to Broadcast Caption
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Emoji Generation & Audio Caption System -->
 <script src="emoji-utils.js"></script>
+<script src="audio-caption.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -856,7 +856,7 @@ async function publishContent() {
 
   try {
     const res = await fetch('/api/upload', { method: 'POST', body: formData });
-    const data = await res.json();
+    const data = await safeParseResponse(res);
     if (!data.success) {
       toast('error', data.error || 'Upload failed to start');
       document.getElementById('publish-btn').disabled = false;
@@ -1107,14 +1107,51 @@ function renderAnalytics(analytics) {
 }
 
 // ── Utilities ──────────────────────────────────────────────
+async function safeParseResponse(res) {
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      return await res.json();
+    } catch (e) {
+      return { success: false, error: 'Malformed JSON returned by server' };
+    }
+  }
+
+  const text = await res.text();
+  if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+    const isLiveServer = location.port && location.port !== '4000';
+    const msg = isLiveServer
+      ? `Server returned HTML (HTTP ${res.status}). You appear to be viewing via port ${location.port}. Please open http://localhost:4000 to interact with the backend.`
+      : `Server returned HTML error page (HTTP ${res.status}). Please check if "npm start" is running on port 4000.`;
+    return { success: false, error: msg };
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return { success: res.ok, error: text || `HTTP ${res.status}: ${res.statusText}` };
+  }
+}
+
 async function api(method, url, body) {
-  const opts = { method, headers: {} };
+  const opts = { method, headers: { 'Accept': 'application/json' } };
   if (body) {
     opts.body = JSON.stringify(body);
     opts.headers['Content-Type'] = 'application/json';
   }
-  const res = await fetch(url, opts);
-  return res.json();
+
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (netErr) {
+    return {
+      success: false,
+      error: `Cannot connect to server (${netErr.message}). Ensure Social Hub is running with "npm start" on http://localhost:4000.`
+    };
+  }
+
+  const parsed = await safeParseResponse(res);
+  return parsed;
 }
 
 function show(id) { const el = document.getElementById(id); if (el) el.style.display = ''; }
@@ -1235,7 +1272,7 @@ async function uploadCookieFile(event) {
   try {
     toast('info', '⏳ Uploading cookies.txt…');
     const res = await fetch('/api/downloader/cookies', { method: 'POST', body: formData });
-    const data = await res.json();
+    const data = await safeParseResponse(res);
     if (data.success) {
       toast('success', '✅ Cookies uploaded! (improves download reliability)');
       checkDownloaderStatus();
@@ -1369,7 +1406,7 @@ function onDownloadComplete(data) {
   if (iconEl) iconEl.textContent = data.mimeType?.startsWith('video') ? '🎬'
     : data.mimeType?.startsWith('audio') ? '🎵' : '📁';
 
-  const displayName = data.filename.replace(/^\d+_/, '').replace(/_/g, ' ');
+  const displayName = data.title || data.filename.replace(/^\d+_/, '').replace(/_/g, ' ');
   if (nameEl) nameEl.textContent = displayName;
 
   const platLabel = data.platform === 'youtube' ? '▶ YouTube' : '◎ Instagram';
@@ -1595,7 +1632,7 @@ async function scheduleContent() {
 
   try {
     const res = await fetch('/api/schedule', { method: 'POST', body: formData });
-    const data = await res.json();
+    const data = await safeParseResponse(res);
 
     if (data.success) {
       toast('success', `⏰ Broadcast scheduled for ${new Date(scheduledTime).toLocaleString()}`);

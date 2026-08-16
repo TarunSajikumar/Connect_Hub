@@ -1,1 +1,12 @@
 node_modules
+downloads/*
+!downloads/.gitkeep
+uploads/*
+!uploads/.gitkeep
+sessions/whatsapp/*
+!sessions/whatsapp/.gitkeep
+sessions/openwa/*
+!sessions/openwa/.gitkeep
+!sessions/openwa/saved_channels.json
+sessions/cookies.txt
+.env

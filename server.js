@@ -690,60 +690,49 @@ app.post('/api/download', async (req, res) => {
 
   const downloadsDir = path.join(__dirname, 'downloads');
   const timestamp = Date.now();
-  const outputTemplate = path.join(downloadsDir, `${timestamp}_%(title).80B.%(ext)s`);
+  // Using timestamp + ID ensures 100% valid ASCII filename across Windows NTFS and Unicode titles
+  const outputTemplate = path.join(downloadsDir, `${timestamp}_%(id)s.%(ext)s`);
 
-  // Build robust yt-dlp execution args (NO COOKIES REQUIRED)
-  const args = [
-    '--no-playlist',
-    // Format priority: best quality without requiring authentication
-    '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
-    '-o', outputTemplate,
-    '--no-warnings',
-    '--retries', '10',
-    '--fragment-retries', '10',
-    '--skip-unavailable-fragments',  // Skip segments that fail instead of stopping
-    '--no-check-certificates',
-    '--geo-bypass',
-    '--geo-bypass-country', 'US',
-    // Aggressive headers to appear as browser
-    '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    '--add-header', 'Accept-Language: en-US,en;q=0.9',
-    '--add-header', 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-    '--add-header', 'Sec-Fetch-Dest: document',
-    '--add-header', 'Sec-Fetch-Mode: navigate',
-    '--add-header', 'Sec-Fetch-Site: none',
-    '--add-header', 'Sec-Fetch-User: ?1',
-    '--add-header', 'Cache-Control: max-age=0',
-    '--add-header', 'Upgrade-Insecure-Requests: 1',
-    '--referer', isInstagram ? 'https://www.instagram.com/' : 'https://www.youtube.com/',
-    // Socket timeouts
-    '--socket-timeout', '30'
-  ];
+  const executeYtDlp = (clientProfile = 'android,ios,mweb,web_safari,tv') => {
+    const args = [
+      '--no-playlist',
+      '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
+      '-o', outputTemplate,
+      '--no-warnings',
+      '--retries', '5',
+      '--fragment-retries', '5',
+      '--skip-unavailable-fragments',
+      '--no-check-certificates',
+      '--socket-timeout', '30'
+    ];
 
-  // Instagram specific arguments
-  if (isInstagram) {
-    args.push('--extractor-args', 'instagram:api_example=1');
-  }
+    if (process.platform === 'win32') {
+      args.push('--windows-filenames');
+    }
 
-  // YouTube specific arguments - no cookies needed
-  if (isYouTube) {
-    // Try to extract age-gated content without authentication
-    args.push('--youtube-skip-dash-manifest');
-  }
+    if (isYouTube) {
+      args.push('--extractor-args', `youtube:player_client=${clientProfile}`);
+    }
 
-  // Optionally use cookies if available (not required)
-  const cookiePath = getCookieFilePath();
-  if (cookiePath) {
-    args.push('--cookies', cookiePath);
-    console.log(`[Download] Cookies available and will be used: ${cookiePath}`);
-  }
+    if (isInstagram) {
+      args.push(
+        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        '--referer', 'https://www.instagram.com/',
+        '--extractor-args', 'instagram:api_example=1'
+      );
+    }
 
-  args.push('--print', 'after_move:filepath', cleanUrl);
+    // Optionally use cookies if available (not required)
+    const cookiePath = getCookieFilePath();
+    if (cookiePath) {
+      args.push('--cookies', cookiePath);
+      console.log(`[Download] Cookies available and will be used: ${cookiePath}`);
+    }
 
-  console.log(`[Download] Starting (no cookies required): ${cleanUrl}`);
+    // Print title and filepath to capture metadata cleanly
+    args.push('--print', 'title', '--print', 'after_move:filepath', cleanUrl);
 
-  try {
-    const filePath = await new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const proc = spawn(ytDlpCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
       let stdout = '';
       let stderr = '';
@@ -759,36 +748,39 @@ app.post('/api/download', async (req, res) => {
       proc.on('close', (code) => {
         clearTimeout(timeout);
         if (code === 0) {
-          const fp = stdout.trim().split('\n').pop().trim();
-          if (fp && fs.existsSync(fp)) {
-            resolve(fp);
-          } else {
-            // Fallback: find file matching timestamp prefix
-            try {
-              const files = fs.readdirSync(downloadsDir)
-                .filter(f => f.startsWith(String(timestamp)))
-                .map(f => ({ f, t: fs.statSync(path.join(downloadsDir, f)).mtimeMs }))
-                .sort((a, b) => b.t - a.t);
-              if (files.length) {
-                resolve(path.join(downloadsDir, files[0].f));
-              } else {
-                reject(new Error('Download completed but file not found'));
+          const lines = stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+          const videoTitle = lines.length > 1 ? lines[0] : '';
+          
+          let foundPath = null;
+          // Primary: look up file matching timestamp in downloadsDir
+          try {
+            const matchingFiles = fs.readdirSync(downloadsDir)
+              .filter(f => f.startsWith(String(timestamp)))
+              .map(f => ({ f, full: path.join(downloadsDir, f), t: fs.statSync(path.join(downloadsDir, f)).mtimeMs }))
+              .sort((a, b) => b.t - a.t);
+            if (matchingFiles.length > 0) {
+              foundPath = matchingFiles[0].full;
+            }
+          } catch (e) {}
+
+          // Secondary: check paths from stdout
+          if (!foundPath) {
+            for (let i = lines.length - 1; i >= 0; i--) {
+              if (fs.existsSync(lines[i])) {
+                foundPath = lines[i];
+                break;
               }
-            } catch (fe) {
-              reject(new Error('Download completed but could not locate file'));
             }
           }
-        } else {
-          const fullErr = stderr.replace(/\x1b\[[0-9;]*m/g, '').trim();
-          if (/HTTP Error 429|Too Many Requests|empty media response|login-in|login required/i.test(fullErr)) {
-            const advice = isInstagram
-              ? '[Instagram] Rate limit or login protection detected (HTTP Error 429). Upload an Instagram cookies.txt file under Downloader Settings or try again shortly.'
-              : 'Platform rate limit encountered (HTTP Error 429). Upload a cookies.txt file or try again shortly.';
-            reject(new Error(advice));
+
+          if (foundPath && fs.existsSync(foundPath)) {
+            resolve({ filePath: foundPath, videoTitle });
           } else {
-            const lastLine = fullErr.split('\n').pop() || 'Download failed';
-            reject(new Error(lastLine));
+            reject(new Error('Download completed but output file could not be located'));
           }
+        } else {
+          const fullErr = (stderr || stdout).replace(/\x1b\[[0-9;]*m/g, '').trim();
+          reject(new Error(fullErr || 'Download failed'));
         }
       });
 
@@ -797,7 +789,24 @@ app.post('/api/download', async (req, res) => {
         reject(new Error('Failed to start yt-dlp: ' + err.message));
       });
     });
+  };
 
+  console.log(`[Download] Starting download (zero-cookie engine): ${cleanUrl}`);
+
+  try {
+    let dlResult;
+    try {
+      dlResult = await executeYtDlp('android,ios,mweb,web_safari,tv');
+    } catch (primaryErr) {
+      if (isYouTube && /bot|sign in|confirm you're not a bot|429/i.test(primaryErr.message)) {
+        console.log('[Download] YouTube bot challenge detected, attempting secondary client profile...');
+        dlResult = await executeYtDlp('ios,tv_embedded,web_embedded,mweb');
+      } else {
+        throw primaryErr;
+      }
+    }
+
+    const { filePath, videoTitle } = dlResult;
     const stat = fs.statSync(filePath);
     const filename = path.basename(filePath);
     const ext = path.extname(filename).toLowerCase();
@@ -808,23 +817,24 @@ app.post('/api/download', async (req, res) => {
       : ext === '.m4a' ? 'audio/mp4'
       : 'application/octet-stream';
 
-    console.log(`[Download] Done: ${filename} (${(stat.size / 1024 / 1024).toFixed(1)} MB)`);
+    console.log(`[Download] Done: ${videoTitle || filename} (${(stat.size / 1024 / 1024).toFixed(1)} MB)`);
 
     // Auto-cleanup after 30 minutes
     setTimeout(() => {
       try { fs.unlinkSync(filePath); } catch (e) {}
     }, 30 * 60 * 1000);
 
-    res.json({
+    return res.json({
       success: true,
       filename,
+      title: videoTitle || filename,
       size: stat.size,
       mimeType,
       platform: isYouTube ? 'youtube' : 'instagram'
     });
 
   } catch (err) {
-    console.warn(`[Download] Download attempt: ${err.message}`);
+    console.warn(`[Download] Primary download attempt: ${err.message}`);
 
     // Automatic zero-cookie InstagramDownloader fallback engine
     if (isInstagram) {
@@ -840,6 +850,7 @@ app.post('/api/download', async (req, res) => {
         return res.json({
           success: true,
           filename: result.filename,
+          title: result.title || result.filename,
           size: result.size,
           mimeType: result.mimeType,
           platform: 'instagram'
@@ -850,7 +861,13 @@ app.post('/api/download', async (req, res) => {
       }
     }
 
-    res.status(500).json({ success: false, error: err.message });
+    const cleanErr = (err.message || 'Download failed')
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('See https://') && !l.startsWith('Also see'))
+      .pop() || 'Download failed';
+
+    res.status(500).json({ success: false, error: cleanErr });
   }
 });
 
@@ -929,6 +946,20 @@ function getLocalIpAddresses() {
   }
   return addresses;
 }
+
+// ─── API 404 & Global JSON Error Handlers ─────────────────────
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, error: `API route ${req.method} ${req.originalUrl} not found` });
+});
+
+app.use((err, req, res, next) => {
+  console.error('[Server Error Handler]', err);
+  if (res.headersSent) return next(err);
+  res.status(err.status || 500).json({
+    success: false,
+    error: err.message || 'Internal Server Error'
+  });
+});
 
 httpServer.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {

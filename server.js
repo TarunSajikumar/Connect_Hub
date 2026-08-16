@@ -681,7 +681,7 @@ app.post('/api/download', async (req, res) => {
   }
 
   // Validate URL is Instagram or YouTube
-  const cleanUrl = url.trim();
+  const cleanUrl = url.trim().replace(/^["']|["']$/g, '');
   const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(cleanUrl);
   const isInstagram = /instagram\.com/i.test(cleanUrl);
   if (!isYouTube && !isInstagram) {

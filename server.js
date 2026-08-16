@@ -711,59 +711,6 @@ app.post('/api/download', async (req, res) => {
   } catch (err) {
     console.warn(`[Download] Download attempt: ${err.message}`);
 
-    const errorMsg = err.message || '';
-    let userFriendlyError = errorMsg;
-
-    // Handle YouTube-specific errors with helpful alternatives
-    if (isYouTube) {
-      if (/404|not found|video unavailable/i.test(errorMsg)) {
-        userFriendlyError = `❌ Video not found or is no longer available.
-
-Possible reasons:
-• Video was deleted by creator
-• Video is private or restricted
-• URL is incorrect
-• Video has been removed due to copyright
-
-Try:
-✓ Check if the URL is correct
-✓ Try a different video
-✓ Wait a few minutes and retry`;
-      } else if (/sign in|login|bot|429|too many|forbidden|403/i.test(errorMsg)) {
-        userFriendlyError = `⚠️ Download limit reached or content requires authentication.
-
-Try these fixes:
-1️⃣ Wait 30 minutes before retrying
-2️⃣ Try a different video
-3️⃣ Upload cookies (optional - helps for age-restricted content)
-4️⃣ Use a VPN to try from different location
-5️⃣ Try again with fresh browser session`;
-      } else if (/age restrict|18|adult|mature/i.test(errorMsg)) {
-        userFriendlyError = `🔞 Video is age-restricted (18+).
-
-Options:
-• Upload cookies from your YouTube account to bypass
-• Video download may require authentication`;
-      }
-    }
-    
-    // Handle Instagram errors
-    else if (isInstagram) {
-      if (/HTTP Error 429|Too Many Requests|rate limit/i.test(errorMsg)) {
-        userFriendlyError = `⏸️ Instagram rate limit hit.
-
-Please wait 30 minutes before trying again.
-Tip: Multiple rapid downloads trigger rate limits.`;
-      } else if (/404|not found|unavailable/i.test(errorMsg)) {
-        userFriendlyError = `❌ Instagram post/reel not found or deleted.
-
-Check if:
-• URL is correct
-• Account is public (private accounts can't be downloaded)
-• Post hasn't been deleted`;
-      }
-    }
-
     // Automatic zero-cookie InstagramDownloader fallback engine
     if (isInstagram) {
       try {
@@ -784,11 +731,11 @@ Check if:
         });
       } catch (fallbackErr) {
         console.error('[Download] Zero-cookie fallback engine error:', fallbackErr.message);
-        return res.status(500).json({ success: false, error: userFriendlyError || fallbackErr.message });
+        return res.status(500).json({ success: false, error: fallbackErr.message });
       }
     }
 
-    res.status(500).json({ success: false, error: userFriendlyError });
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

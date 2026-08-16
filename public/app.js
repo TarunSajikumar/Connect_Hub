@@ -1237,16 +1237,10 @@ function onDownloadComplete(data) {
 function showDlError(msg) {
   const errEl = document.getElementById('dl-error');
   if (errEl) {
-    // Handle multi-line error messages (for helpful instructions)
-    const htmlMsg = msg.replace(/\n/g, '<br>').replace(/📺|❌|🔧|1️⃣|2️⃣|3️⃣|4️⃣|⬜/g, match => `<span style="font-size: 1.2em;">${match}</span>`);
-    errEl.innerHTML = htmlMsg;
+    errEl.textContent = '❌ ' + msg;
     errEl.style.display = 'block';
-    errEl.style.whiteSpace = 'pre-wrap';
-    errEl.style.wordWrap = 'break-word';
   }
-  // For toast, show first line only to avoid clutter
-  const firstLine = msg.split('\n')[0];
-  toast('error', firstLine);
+  toast('error', msg);
 }
 
 async function useDownloadedFile() {

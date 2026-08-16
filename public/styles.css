@@ -594,7 +594,7 @@ body {
 .btn-dl-use:hover { background: linear-gradient(135deg, rgba(167,139,250,.45), rgba(56,189,248,.3)); color: #fff; }
 .btn-dl-use.used { background: rgba(52,211,153,.25); border-color: rgba(52,211,153,.5); color: var(--green); }
 
-.dl-error { padding: .75rem 1rem; background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3); border-radius: var(--radius-sm); color: var(--red); font-size: .8rem; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; }
+.dl-error { padding: .75rem 1rem; background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.3); border-radius: var(--radius-sm); color: var(--red); font-size: .8rem; }
 
 /* ── Upload & Publish Component ── */
 .dropzone {

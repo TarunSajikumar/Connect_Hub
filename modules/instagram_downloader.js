@@ -237,17 +237,19 @@ export default class InstagramDownloader {
     }
 
     // Candidate 6: Snap-Video API (RapidAPI)
-    try {
-      console.log('[IG Engine] Querying Snap-Video API...');
-      const { ok, data } = await safeFetchJson('https://snap-video3.p.rapidapi.com/download', {
-        method: 'POST',
-        headers: {
-          'x-rapidapi-key': '6c89b60d54mshbd7129398394e6ap1ea9cajsn74a5d4e18244',
-          'x-rapidapi-host': 'snap-video3.p.rapidapi.com',
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: new URLSearchParams({ url: cleanUrl })
-      });
+    const rapidApiKey = process.env.RAPIDAPI_KEY || '6c89b60d54mshbd7129398394e6ap1ea9cajsn74a5d4e18244';
+    if (rapidApiKey) {
+      try {
+        console.log('[IG Engine] Querying Snap-Video API...');
+        const { ok, data } = await safeFetchJson('https://snap-video3.p.rapidapi.com/download', {
+          method: 'POST',
+          headers: {
+            'x-rapidapi-key': rapidApiKey,
+            'x-rapidapi-host': 'snap-video3.p.rapidapi.com',
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: new URLSearchParams({ url: cleanUrl })
+        });
       if (ok && data && data.medias && data.medias.length > 0) {
         const video = data.medias.find(m => m.extension === 'mp4' || m.videoAvailable) || data.medias[0];
         if (video && video.url) {
@@ -256,6 +258,7 @@ export default class InstagramDownloader {
       }
     } catch (e) {
       console.log('[IG Engine] Snap-Video query notice:', e.message);
+    }
     }
 
     // Candidate 7: Meta Proxies (DDInstagram / KKInstagram / InstaFix)

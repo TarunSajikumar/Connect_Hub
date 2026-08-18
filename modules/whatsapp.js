@@ -599,8 +599,8 @@ export default class WhatsAppModule {
     let content;
     const isChannel = jid.endsWith('@newsletter');
 
-    // Read file as buffer
-    const buffer = fs.readFileSync(filePath);
+    // Read file asynchronously
+    const buffer = await fs.promises.readFile(filePath);
 
     if (mimetype.startsWith('image/')) {
       content = { image: buffer, caption };

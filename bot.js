@@ -11,7 +11,7 @@ process.env.NTBA_FIX_350 = '1';
 
 // ─── CONFIGURATION ───────────────────────────────────────────
 // Put your Telegram Bot Token from @BotFather here (or use BOT_TOKEN environment variable)
-const BOT_TOKEN = process.env.BOT_TOKEN || '8890620106:AAE874KLV7eYsoAEFeMpZqE9JW9DaBsQLeg';
+const BOT_TOKEN = process.env.BOT_TOKEN || '';
 
 // Put your Telegram Channel link or @username here
 const CHANNEL_LINK = process.env.CHANNEL_LINK || 'https://t.me/personalstry';
@@ -30,8 +30,8 @@ function escapeMarkdown(text) {
 }
 
 if (!BOT_TOKEN || BOT_TOKEN === 'YOUR_TELEGRAM_BOT_TOKEN') {
-  console.error('❌ Error: Please set your BOT_TOKEN inside bot.js before running!');
-  console.log('Open bot.js and replace "YOUR_TELEGRAM_BOT_TOKEN" with your bot token from @BotFather.');
+  console.error('❌ Error: Please set your BOT_TOKEN environment variable before running bot.js!');
+  console.log('Example: BOT_TOKEN=123456789:ABCdefGhIJKlmNoPQRsTUVwxYZ node bot.js');
   process.exit(1);
 }
 
@@ -132,6 +132,10 @@ bot.on('new_chat_members', (msg) => {
 
 // Catch polling errors gracefully
 bot.on('polling_error', (error) => {
+  if (error.code === 'EFATAL' || error.message?.includes('409 Conflict') || error.message?.includes('ETELEGRAM: 409')) {
+    console.warn('⚠️ Telegram polling notice: Another session is active on this token (e.g. server.js). Polling paused.');
+    return;
+  }
   console.error('Polling error:', error.code || error.message);
 });
 

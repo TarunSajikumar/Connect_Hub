@@ -111,6 +111,15 @@ export default class TelegramModule {
     this.connected = true;
     this.token = token;
 
+    // Gracefully handle network hiccups or temporary 409 polling conflicts
+    this.bot.on('polling_error', (error) => {
+      if (error.code === 'EFATAL' || error.message?.includes('409 Conflict') || error.message?.includes('ETELEGRAM: 409')) {
+        console.warn('⚠️ [TG] Telegram polling notice: Polling paused or active elsewhere.');
+        return;
+      }
+      console.warn('[TG] Polling error notice:', error.code || error.message);
+    });
+
     // Clear existing chats on fresh connect
     this.chats = [];
     this.processingChats = new Set();

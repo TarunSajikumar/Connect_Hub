@@ -8,7 +8,8 @@
     "dev": "node --watch server.js",
     "build": "node scripts/setup-ytdlp.mjs",
     "postinstall": "node scripts/setup-ytdlp.mjs",
-    "bot": "node bot.js"
+    "bot": "node bot.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",

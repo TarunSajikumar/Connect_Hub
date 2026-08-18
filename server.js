@@ -972,13 +972,22 @@ app.post('/api/upload', upload.single('media'), async (req, res) => {
     }
   };
 
-  const results = await Promise.all(targets.map(uploadTarget));
-  broadcast({ type: 'upload_complete', jobId, results });
-
-  // Cleanup uploaded temp file after 10s
-  setTimeout(() => {
-    try { fs.unlinkSync(file.path); } catch (e) {}
-  }, 10000);
+  try {
+    const results = await Promise.all(targets.map(uploadTarget));
+    broadcast({ type: 'upload_complete', jobId, results });
+  } catch (err) {
+    console.error('[Upload Pipeline Error]', err);
+    broadcast({ type: 'upload_complete', jobId, error: err.message });
+  } finally {
+    // Cleanup uploaded temp file safely after all targets settle
+    setTimeout(() => {
+      try {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      } catch (e) {}
+    }, 5000);
+  }
 });
 
 // ─── Start Server ─────────────────────────────────────────────
@@ -1038,3 +1047,6 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   }
   console.log('='.repeat(54) + '\n');
 });
+
+export { app, httpServer, wss };
+

@@ -47,6 +47,9 @@ export default class SchedulerModule {
     if (this.timer) clearInterval(this.timer);
     // Check every 5 seconds for due jobs
     this.timer = setInterval(() => this.checkDueJobs(), 5000);
+    if (this.timer && typeof this.timer.unref === 'function') {
+      this.timer.unref();
+    }
   }
 
   async checkDueJobs() {

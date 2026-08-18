@@ -596,7 +596,7 @@ export default class WhatsAppOpenWA {
     if (!fs.existsSync(filePath)) throw new Error(`Media file not found at path: ${filePath}`);
 
     const chatId = this._formatChatId(targetJid);
-    const fileBuffer = fs.readFileSync(filePath);
+    const fileBuffer = await fs.promises.readFile(filePath);
     const base64 = fileBuffer.toString('base64');
     const detectedMime = mimeType || this._detectMime(filePath);
     const filename = originalName || path.basename(filePath);

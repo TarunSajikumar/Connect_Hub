@@ -703,8 +703,25 @@ app.post('/api/download', async (req, res) => {
     return res.status(400).json({ success: false, error: 'URL is required' });
   }
 
-  // Validate URL is Instagram or YouTube
-  const cleanUrl = url.trim().replace(/^["']|["']$/g, '');
+  // Clean and normalize input URL
+  let cleanUrl = url.trim().replace(/^["']|["']$/g, '');
+  
+  // Normalize YouTube short and mobile URLs
+  const shortsMatch = cleanUrl.match(/(?:youtube\.com|youtu\.be)\/shorts\/([a-zA-Z0-9_-]+)/i);
+  if (shortsMatch) {
+    cleanUrl = `https://www.youtube.com/watch?v=${shortsMatch[1]}`;
+  } else {
+    const youtuBeMatch = cleanUrl.match(/youtu\.be\/([a-zA-Z0-9_-]+)/i);
+    if (youtuBeMatch && !cleanUrl.includes('/watch')) {
+      cleanUrl = `https://www.youtube.com/watch?v=${youtuBeMatch[1]}`;
+    } else {
+      const watchMatch = cleanUrl.match(/youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]+)/i);
+      if (watchMatch) {
+        cleanUrl = `https://www.youtube.com/watch?v=${watchMatch[1]}`;
+      }
+    }
+  }
+
   const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(cleanUrl);
   const isInstagram = /instagram\.com/i.test(cleanUrl);
   if (!isYouTube && !isInstagram) {
@@ -716,12 +733,12 @@ app.post('/api/download', async (req, res) => {
   // Using timestamp + ID ensures 100% valid ASCII filename across Windows NTFS and Unicode titles
   const outputTemplate = path.join(downloadsDir, `${timestamp}_%(id)s.%(ext)s`);
 
-  const executeYtDlp = (clientProfile = 'android_vr,android,web,tv') => {
+  const executeYtDlp = (clientProfile = 'android_vr,android,web') => {
     const args = [
       '--no-playlist',
       '--force-ipv4',
       '--merge-output-format', 'mp4',
-      '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
+      '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[ext=mp4]/best',
       '-o', outputTemplate,
       '--no-warnings',
       '--retries', '5',
@@ -741,7 +758,7 @@ app.post('/api/download', async (req, res) => {
 
     if (isYouTube) {
       if (clientProfile && clientProfile !== 'default') {
-        args.push('--extractor-args', `youtube:player_client=${clientProfile};player_skip=configs,webpage`);
+        args.push('--extractor-args', `youtube:player_client=${clientProfile}`);
       }
     }
 
@@ -776,10 +793,10 @@ app.post('/api/download', async (req, res) => {
           const videoTitle = lines.length > 1 ? lines[0] : '';
           
           let foundPath = null;
-          // Primary: look up file matching timestamp in downloadsDir
+          // Primary: look up final merged file matching timestamp in downloadsDir
           try {
             const matchingFiles = fs.readdirSync(downloadsDir)
-              .filter(f => f.startsWith(String(timestamp)))
+              .filter(f => f.startsWith(String(timestamp)) && !/\.f\d+\./i.test(f) && !f.endsWith('.part'))
               .map(f => ({ f, full: path.join(downloadsDir, f), t: fs.statSync(path.join(downloadsDir, f)).mtimeMs }))
               .sort((a, b) => b.t - a.t);
             if (matchingFiles.length > 0) {
@@ -787,11 +804,12 @@ app.post('/api/download', async (req, res) => {
             }
           } catch (e) {}
 
-          // Secondary: check paths from stdout
+          // Secondary: check paths from stdout (filter out temporary stream fragments)
           if (!foundPath) {
             for (let i = lines.length - 1; i >= 0; i--) {
-              if (fs.existsSync(lines[i])) {
+              if (fs.existsSync(lines[i]) && !/\.f\d+\./i.test(lines[i]) && !lines[i].endsWith('.part')) {
                 foundPath = lines[i];
+                break;
               }
             }
           }
@@ -827,10 +845,10 @@ app.post('/api/download', async (req, res) => {
     let dlResult;
     if (isYouTube) {
       const ytProfiles = [
-        'android_vr,android,web,tv',
-        'android_vr,web_safari,mweb',
+        'android_vr,android,web',
+        'android_vr,android',
+        'web,mweb',
         'tv_embedded,tv',
-        'android',
         'default'
       ];
       let lastErr = null;

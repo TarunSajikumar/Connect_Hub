@@ -716,9 +716,11 @@ app.post('/api/download', async (req, res) => {
   // Using timestamp + ID ensures 100% valid ASCII filename across Windows NTFS and Unicode titles
   const outputTemplate = path.join(downloadsDir, `${timestamp}_%(id)s.%(ext)s`);
 
-  const executeYtDlp = (clientProfile = 'tv_embedded') => {
+  const executeYtDlp = (clientProfile = 'android_vr,android,web,tv') => {
     const args = [
       '--no-playlist',
+      '--force-ipv4',
+      '--merge-output-format', 'mp4',
       '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
       '-o', outputTemplate,
       '--no-warnings',
@@ -812,21 +814,34 @@ app.post('/api/download', async (req, res) => {
     });
   };
 
-  console.log(`[Download] Starting download: ${cleanUrl}`);
+  const startTime = Date.now();
+  console.log('\n' + '='.repeat(50));
+  console.log('[DOWNLOAD] Processing media download request:');
+  console.log(`  URL:       ${cleanUrl}`);
+  console.log(`  Platform:  ${isYouTube ? 'youtube' : 'instagram'}`);
+  console.log(`  yt-dlp:    ${ytDlpCmd} (v${ytDlpVersion || 'latest'})`);
+  console.log(`  FFmpeg:    ${ffmpegAvailable ? `Available (${ffmpegCmd})` : 'Not available'}`);
+  console.log('='.repeat(50));
 
   try {
     let dlResult;
     if (isYouTube) {
-      const ytProfiles = ['android', 'ios', 'tv_embedded', 'tv', 'mweb', 'default'];
+      const ytProfiles = [
+        'android_vr,android,web,tv',
+        'android_vr,web_safari,mweb',
+        'tv_embedded,tv',
+        'android',
+        'default'
+      ];
       let lastErr = null;
       for (const profile of ytProfiles) {
         try {
-          console.log(`[Download] Attempting YouTube extraction with client profile: ${profile}...`);
+          console.log(`[DOWNLOAD] Attempting profile: ${profile}...`);
           dlResult = await executeYtDlp(profile);
           if (dlResult && dlResult.filePath) break;
         } catch (attemptErr) {
           lastErr = attemptErr;
-          console.warn(`[Download] Profile '${profile}' notice: ${attemptErr.message}`);
+          console.warn(`[DOWNLOAD] Profile '${profile}' notice: ${attemptErr.message}`);
         }
       }
       if (!dlResult && lastErr) {
@@ -847,7 +862,8 @@ app.post('/api/download', async (req, res) => {
       : ext === '.m4a' ? 'audio/mp4'
       : 'application/octet-stream';
 
-    console.log(`[Download] Done: ${videoTitle || filename} (${(stat.size / 1024 / 1024).toFixed(1)} MB)`);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[DOWNLOAD] Success (${duration}s): ${videoTitle || filename} (${(stat.size / 1024 / 1024).toFixed(2)} MB)\n`);
 
     // Auto-cleanup after 30 minutes
     setTimeout(() => {
@@ -864,12 +880,13 @@ app.post('/api/download', async (req, res) => {
     });
 
   } catch (err) {
-    console.warn(`[Download] Primary download attempt: ${err.message}`);
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.warn(`[DOWNLOAD] Primary engine error (${duration}s): ${err.message}`);
 
     // Automatic zero-cookie InstagramDownloader fallback engine
     if (isInstagram) {
       try {
-        console.log(`[Download] Launching zero-cookie InstagramDownloader engine for: ${cleanUrl}`);
+        console.log(`[DOWNLOAD] Launching zero-cookie InstagramDownloader engine for: ${cleanUrl}`);
         const result = await InstagramDownloader.downloadReel(cleanUrl, downloadsDir);
 
         // Auto-cleanup after 30 minutes
@@ -886,8 +903,8 @@ app.post('/api/download', async (req, res) => {
           platform: 'instagram'
         });
       } catch (fallbackErr) {
-        console.error('[Download] Zero-cookie fallback engine error:', fallbackErr.message);
-        return res.status(500).json({ success: false, error: fallbackErr.message });
+        console.error('[DOWNLOAD] Zero-cookie fallback engine error:', fallbackErr.message);
+        return res.status(500).json({ success: false, code: 'INSTAGRAM_DOWNLOAD_FAILED', error: fallbackErr.message });
       }
     }
 
@@ -898,11 +915,15 @@ app.post('/api/download', async (req, res) => {
       .pop() || 'Download failed';
 
     if (/bot|sign in to confirm you're not a bot|429|forbidden/i.test(err.message)) {
-      console.warn(`[Download] YouTube bot verification / IP limit: ${err.message}`);
+      console.warn(`[DOWNLOAD] YouTube bot verification / datacenter IP block: ${err.message}`);
       cleanErr = 'Unable to download this YouTube video right now. Please try another video or link.';
     }
 
-    res.status(500).json({ success: false, error: cleanErr });
+    res.status(500).json({
+      success: false,
+      code: isYouTube ? 'YOUTUBE_DOWNLOAD_UNAVAILABLE' : 'DOWNLOAD_FAILED',
+      error: cleanErr
+    });
   }
 });
 

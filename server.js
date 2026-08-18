@@ -703,7 +703,7 @@ app.post('/api/download', async (req, res) => {
   // Using timestamp + ID ensures 100% valid ASCII filename across Windows NTFS and Unicode titles
   const outputTemplate = path.join(downloadsDir, `${timestamp}_%(id)s.%(ext)s`);
 
-  const executeYtDlp = (clientProfile = 'ios,android,mweb,web_safari,tv') => {
+  const executeYtDlp = (clientProfile = 'android') => {
     const args = [
       '--no-playlist',
       '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
@@ -778,7 +778,6 @@ app.post('/api/download', async (req, res) => {
             for (let i = lines.length - 1; i >= 0; i--) {
               if (fs.existsSync(lines[i])) {
                 foundPath = lines[i];
-                break;
               }
             }
           }
@@ -805,15 +804,28 @@ app.post('/api/download', async (req, res) => {
 
   try {
     let dlResult;
-    try {
-      dlResult = await executeYtDlp('ios,android,mweb,web_safari,tv');
-    } catch (primaryErr) {
-      if (isYouTube && /bot|sign in|confirm you're not a bot|429/i.test(primaryErr.message)) {
-        console.log('[Download] YouTube bot challenge detected, attempting secondary client profile...');
-        dlResult = await executeYtDlp('android,tv_embedded,web_embedded,mweb');
-      } else {
-        throw primaryErr;
+    if (isYouTube) {
+      const ytProfiles = ['android', 'web_safari', 'ios', 'mweb', 'default,-web'];
+      let lastErr = null;
+      for (const profile of ytProfiles) {
+        try {
+          console.log(`[Download] Attempting YouTube extraction with client profile: ${profile}...`);
+          dlResult = await executeYtDlp(profile);
+          if (dlResult && dlResult.filePath) break;
+        } catch (attemptErr) {
+          lastErr = attemptErr;
+          console.warn(`[Download] Profile '${profile}' failed: ${attemptErr.message}`);
+          if (!/bot|sign in|confirm you're not a bot|429|forbidden/i.test(attemptErr.message)) {
+            // If it's not a bot/auth error (e.g. invalid URL), stop retrying
+            throw attemptErr;
+          }
+        }
       }
+      if (!dlResult && lastErr) {
+        throw lastErr;
+      }
+    } else {
+      dlResult = await executeYtDlp();
     }
 
     const { filePath, videoTitle } = dlResult;

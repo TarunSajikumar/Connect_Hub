@@ -1123,10 +1123,10 @@ async function safeParseResponse(res) {
 
   const text = await res.text();
   if (text.includes('<!DOCTYPE') || text.includes('<html')) {
-    const isLiveServer = location.port && location.port !== '4000';
+    const isLiveServer = location.port && location.port !== '4000' && location.hostname === 'localhost';
     const msg = isLiveServer
-      ? `Server returned HTML (HTTP ${res.status}). You appear to be viewing via port ${location.port}. Please open http://localhost:4000 to interact with the backend.`
-      : `Server returned HTML error page (HTTP ${res.status}). Please check if "npm start" is running on port 4000.`;
+      ? `Server returned HTML (HTTP ${res.status}). You appear to be viewing via a static live server on port ${location.port}. Please open the main server port (e.g. port 4000) to interact with the backend.`
+      : `Server returned HTML response (HTTP ${res.status}). Please verify the backend service is running and healthy.`;
     return { success: false, error: msg };
   }
 
@@ -1150,7 +1150,7 @@ async function api(method, url, body) {
   } catch (netErr) {
     return {
       success: false,
-      error: `Cannot connect to server (${netErr.message}). Ensure Social Hub is running with "npm start" on http://localhost:4000.`
+      error: `Cannot connect to server (${netErr.message}). Ensure the Social Hub backend is active and reachable.`
     };
   }
 
@@ -1238,69 +1238,7 @@ async function checkDownloaderStatus() {
       const btn = document.getElementById('dl-btn');
       if (btn) btn.disabled = true;
     }
-    updateCookieUI(res.hasCookies, res.cookieFileName);
   } catch (e) { /* server offline */ }
-}
-
-function updateCookieUI(hasCookies, fileName) {
-  const badge = document.getElementById('dl-cookies-badge');
-  const clearBtn = document.getElementById('btn-cookie-clear');
-  if (badge) {
-    if (hasCookies) {
-      badge.className = 'cookie-status-badge active';
-      badge.textContent = `Loaded (${fileName || 'cookies.txt'})`;
-    } else {
-      badge.className = 'cookie-status-badge none';
-      badge.textContent = 'Optional (Not Required)';
-    }
-  }
-  if (clearBtn) {
-    clearBtn.style.display = hasCookies ? 'inline-flex' : 'none';
-  }
-}
-
-function toggleCookieBox() {
-  const box = document.getElementById('dl-cookies-box');
-  if (box) {
-    box.style.display = box.style.display === 'none' ? 'flex' : 'none';
-  }
-}
-
-async function uploadCookieFile(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const formData = new FormData();
-  formData.append('cookieFile', file);
-
-  try {
-    toast('info', '⏳ Uploading cookies.txt…');
-    const res = await fetch('/api/downloader/cookies', { method: 'POST', body: formData });
-    const data = await safeParseResponse(res);
-    if (data.success) {
-      toast('success', '✅ Cookies uploaded! (improves download reliability)');
-      checkDownloaderStatus();
-    } else {
-      toast('error', data.error || 'Failed to upload cookies');
-    }
-  } catch (e) {
-    toast('error', 'Cannot upload cookie file');
-  } finally {
-    event.target.value = '';
-  }
-}
-
-async function clearCookies() {
-  if (!confirm('Remove uploaded cookies?')) return;
-  try {
-    const res = await api('DELETE', '/api/downloader/cookies');
-    if (res.success) {
-      toast('info', 'Cookies removed (downloads still work fine)');
-      checkDownloaderStatus();
-    }
-  } catch (e) {
-    toast('error', 'Failed to remove cookies');
-  }
 }
 
 async function pasteClipboardToInput() {

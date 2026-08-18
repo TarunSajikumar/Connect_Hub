@@ -74,7 +74,17 @@ for (const dir of ['uploads', 'sessions', 'sessions/whatsapp', 'sessions/openwa'
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, pathUrl) => {
+    if (pathUrl.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+    }
+  }
+}));
 
 // ─── Environment & PATH Recovery (Windows support) ───────────
 if (process.platform === 'win32') {
@@ -122,22 +132,41 @@ if (process.platform === 'win32') {
   }
 }
 
-// ─── Cookie Helper for Media Downloader ──────────────────────
-function getCookieFilePath() {
-  const possiblePaths = [
-    path.join(__dirname, 'sessions', 'cookies.txt'),
-    path.join(__dirname, 'sessions', 'instagram', 'cookies.txt'),
-    path.join(__dirname, 'cookies.txt')
-  ];
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p) && fs.statSync(p).size > 0) return p;
+// ─── FFmpeg availability & detection ─────────────────────────
+let ffmpegAvailable = false;
+let ffmpegCmd = 'ffmpeg';
+
+const localLinuxFfmpeg = path.join(__dirname, 'ffmpeg');
+if (process.platform === 'linux' && fs.existsSync(localLinuxFfmpeg)) {
+  try {
+    execSync(`chmod +x "${localLinuxFfmpeg}"`, { stdio: 'ignore' });
+    ffmpegCmd = localLinuxFfmpeg;
+    ffmpegAvailable = true;
+    console.log('  ✅ ffmpeg   — Local Linux standalone binary ready');
+  } catch (e) {}
+}
+
+if (!ffmpegAvailable) {
+  try {
+    execSync('ffmpeg -version', { stdio: 'ignore' });
+    ffmpegAvailable = true;
+    ffmpegCmd = 'ffmpeg';
+    console.log('  ✅ ffmpeg   — System binary ready');
+  } catch (e) {
+    if (process.platform === 'win32') {
+      const localWinFfmpeg = path.join(__dirname, 'ffmpeg.exe');
+      if (fs.existsSync(localWinFfmpeg)) {
+        ffmpegCmd = localWinFfmpeg;
+        ffmpegAvailable = true;
+      }
+    }
   }
-  return null;
 }
 
 // ─── yt-dlp availability & version check ────────────────────────
 let ytDlpAvailable = false;
 let ytDlpCmd = 'yt-dlp';
+let ytDlpVersion = null;
 
 const localLinuxBin = path.join(__dirname, 'yt-dlp');
 const localWinBin = path.join(__dirname, 'yt-dlp.exe');
@@ -156,10 +185,10 @@ if (process.platform === 'linux') {
   if (fs.existsSync(localLinuxBin)) {
     try {
       execSync(`chmod +x "${localLinuxBin}"`, { stdio: 'ignore' });
-      const ver = execSync(`"${localLinuxBin}" --version`, { stdio: 'pipe' }).toString().trim();
+      ytDlpVersion = execSync(`"${localLinuxBin}" --version`, { stdio: 'pipe' }).toString().trim();
       ytDlpCmd = localLinuxBin;
       ytDlpAvailable = true;
-      console.log(`  ✅ yt-dlp   — Official latest Linux binary ready (v${ver})`);
+      console.log(`  ✅ yt-dlp   — Official latest Linux binary ready (v${ytDlpVersion})`);
     } catch (e) {}
   }
 }
@@ -167,14 +196,17 @@ if (process.platform === 'linux') {
 // Fallback to system or Windows binary
 if (!ytDlpAvailable) {
   try {
-    const ver = execSync('yt-dlp --version', { stdio: 'pipe' }).toString().trim();
+    ytDlpVersion = execSync('yt-dlp --version', { stdio: 'pipe' }).toString().trim();
     ytDlpAvailable = true;
     ytDlpCmd = 'yt-dlp';
-    console.log(`  ✅ yt-dlp   — System binary ready (v${ver})`);
+    console.log(`  ✅ yt-dlp   — System binary ready (v${ytDlpVersion})`);
   } catch (e) {
     if (fs.existsSync(localWinBin)) {
       ytDlpCmd = localWinBin;
       ytDlpAvailable = true;
+      try {
+        ytDlpVersion = execSync(`"${localWinBin}" --version`, { stdio: 'pipe' }).toString().trim();
+      } catch {}
     } else if (process.platform === 'win32') {
       const windowsPaths = [
         path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
@@ -185,6 +217,9 @@ if (!ytDlpAvailable) {
         if (fs.existsSync(p)) {
           ytDlpCmd = p;
           ytDlpAvailable = true;
+          try {
+            ytDlpVersion = execSync(`"${p}" --version`, { stdio: 'pipe' }).toString().trim();
+          } catch {}
           break;
         }
       }
@@ -632,49 +667,27 @@ app.get('/api/analytics', async (req, res) => {
   }
 });
 
+// ─── API: Safe Health Diagnostic Endpoint ────────────────────
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    environment: process.env.NODE_ENV === 'production' || process.env.RENDER ? 'production' : 'development',
+    version: '2.0.0',
+    ytDlpAvailable: !!ytDlpAvailable,
+    ytDlpCmd: ytDlpCmd ? path.basename(ytDlpCmd) : null,
+    ytDlpVersion: ytDlpVersion || null,
+    ffmpegAvailable: !!ffmpegAvailable,
+    ffmpegCmd: ffmpegCmd ? path.basename(ffmpegCmd) : null,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // ─── API: Media Downloader ────────────────────────────────────
 app.get('/api/downloader/status', (req, res) => {
-  const cookiePath = getCookieFilePath();
   res.json({
     success: true,
-    available: ytDlpAvailable,
-    hasCookies: !!cookiePath,
-    cookieFileName: cookiePath ? path.basename(cookiePath) : null
+    available: ytDlpAvailable
   });
-});
-
-app.get('/api/downloader/cookies', (req, res) => {
-  const cookiePath = getCookieFilePath();
-  res.json({
-    success: true,
-    hasCookies: !!cookiePath,
-    cookieFileName: cookiePath ? path.basename(cookiePath) : null
-  });
-});
-
-app.post('/api/downloader/cookies', upload.single('cookieFile'), (req, res) => {
-  try {
-    const targetPath = path.join(__dirname, 'sessions', 'cookies.txt');
-    if (req.file) {
-      fs.copyFileSync(req.file.path, targetPath);
-      try { fs.unlinkSync(req.file.path); } catch (e) {}
-      return res.json({ success: true, message: 'Cookies file uploaded successfully' });
-    } else if (req.body && req.body.cookiesText) {
-      fs.writeFileSync(targetPath, req.body.cookiesText.trim(), 'utf8');
-      return res.json({ success: true, message: 'Cookies text saved successfully' });
-    }
-    return res.status(400).json({ success: false, error: 'No cookie file or text provided' });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.delete('/api/downloader/cookies', (req, res) => {
-  const cookiePath = getCookieFilePath();
-  if (cookiePath) {
-    try { fs.unlinkSync(cookiePath); } catch (e) {}
-  }
-  res.json({ success: true, message: 'Cookies removed successfully' });
 });
 
 app.post('/api/download', async (req, res) => {
@@ -703,7 +716,7 @@ app.post('/api/download', async (req, res) => {
   // Using timestamp + ID ensures 100% valid ASCII filename across Windows NTFS and Unicode titles
   const outputTemplate = path.join(downloadsDir, `${timestamp}_%(id)s.%(ext)s`);
 
-  const executeYtDlp = (clientProfile = 'android') => {
+  const executeYtDlp = (clientProfile = 'tv_embedded') => {
     const args = [
       '--no-playlist',
       '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best',
@@ -720,8 +733,14 @@ app.post('/api/download', async (req, res) => {
       args.push('--windows-filenames');
     }
 
+    if (ffmpegAvailable && ffmpegCmd) {
+      args.push('--ffmpeg-location', path.isAbsolute(ffmpegCmd) ? ffmpegCmd : path.dirname(ffmpegCmd) || ffmpegCmd);
+    }
+
     if (isYouTube) {
-      args.push('--extractor-args', `youtube:player_client=${clientProfile}`);
+      if (clientProfile && clientProfile !== 'default') {
+        args.push('--extractor-args', `youtube:player_client=${clientProfile};player_skip=configs,webpage`);
+      }
     }
 
     if (isInstagram) {
@@ -730,13 +749,6 @@ app.post('/api/download', async (req, res) => {
         '--referer', 'https://www.instagram.com/',
         '--extractor-args', 'instagram:api_example=1'
       );
-    }
-
-    // Optionally use cookies if available (not required)
-    const cookiePath = getCookieFilePath();
-    if (cookiePath) {
-      args.push('--cookies', cookiePath);
-      console.log(`[Download] Cookies available and will be used: ${cookiePath}`);
     }
 
     // Print title and filepath to capture metadata cleanly
@@ -800,12 +812,12 @@ app.post('/api/download', async (req, res) => {
     });
   };
 
-  console.log(`[Download] Starting download (zero-cookie engine): ${cleanUrl}`);
+  console.log(`[Download] Starting download: ${cleanUrl}`);
 
   try {
     let dlResult;
     if (isYouTube) {
-      const ytProfiles = ['android', 'web_safari', 'ios', 'mweb', 'default,-web'];
+      const ytProfiles = ['android', 'ios', 'tv_embedded', 'tv', 'mweb', 'default'];
       let lastErr = null;
       for (const profile of ytProfiles) {
         try {
@@ -814,11 +826,7 @@ app.post('/api/download', async (req, res) => {
           if (dlResult && dlResult.filePath) break;
         } catch (attemptErr) {
           lastErr = attemptErr;
-          console.warn(`[Download] Profile '${profile}' failed: ${attemptErr.message}`);
-          if (!/bot|sign in|confirm you're not a bot|429|forbidden/i.test(attemptErr.message)) {
-            // If it's not a bot/auth error (e.g. invalid URL), stop retrying
-            throw attemptErr;
-          }
+          console.warn(`[Download] Profile '${profile}' notice: ${attemptErr.message}`);
         }
       }
       if (!dlResult && lastErr) {
@@ -883,11 +891,16 @@ app.post('/api/download', async (req, res) => {
       }
     }
 
-    const cleanErr = (err.message || 'Download failed')
+    let cleanErr = (err.message || 'Download failed')
       .split('\n')
       .map(l => l.trim())
       .filter(l => l && !l.startsWith('See https://') && !l.startsWith('Also see'))
       .pop() || 'Download failed';
+
+    if (/bot|sign in to confirm you're not a bot|429|forbidden/i.test(err.message)) {
+      console.warn(`[Download] YouTube bot verification / IP limit: ${err.message}`);
+      cleanErr = 'Unable to download this YouTube video right now. Please try another video or link.';
+    }
 
     res.status(500).json({ success: false, error: cleanErr });
   }

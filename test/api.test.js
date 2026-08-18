@@ -6,13 +6,20 @@ describe('Server REST API Integration Tests', () => {
   let baseUrl;
 
   before(async () => {
-    // If server is not yet listening, wait for listening event
-    if (!httpServer.listening) {
-      await new Promise((resolve) => httpServer.once('listening', resolve));
+    if (httpServer.listening) {
+      const addr = httpServer.address();
+      const port = typeof addr === 'object' && addr !== null ? addr.port : 4000;
+      baseUrl = `http://localhost:${port}`;
+    } else {
+      // Race listen event with a brief fallback in case server is already running on port 4000
+      await Promise.race([
+        new Promise((resolve) => httpServer.once('listening', resolve)),
+        new Promise((resolve) => setTimeout(resolve, 800))
+      ]);
+      const addr = httpServer.address();
+      const port = typeof addr === 'object' && addr !== null ? addr.port : 4000;
+      baseUrl = `http://localhost:${port}`;
     }
-    const addr = httpServer.address();
-    const port = typeof addr === 'object' && addr !== null ? addr.port : 4000;
-    baseUrl = `http://localhost:${port}`;
   });
 
   after(() => {
@@ -20,6 +27,25 @@ describe('Server REST API Integration Tests', () => {
       if (wss && typeof wss.close === 'function') wss.close();
       if (httpServer && typeof httpServer.close === 'function') httpServer.close();
     } catch (e) {}
+  });
+
+  test('GET /api/health should return safe diagnostic system envelope', async () => {
+    const res = await fetch(`${baseUrl}/api/health`);
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.status, 'ok');
+    assert.ok(json.environment);
+    assert.equal(json.version, '2.0.0');
+    assert.equal(typeof json.ytDlpAvailable, 'boolean');
+    assert.equal(typeof json.ffmpegAvailable, 'boolean');
+    assert.ok(json.timestamp);
+
+    // Ensure non-sensitive info only — NO secret leakage and NO cookies
+    assert.equal(json.token, undefined);
+    assert.equal(json.apiKey, undefined);
+    assert.equal(json.password, undefined);
+    assert.equal(json.cookies, undefined);
+    assert.equal(json.hasCookies, undefined);
   });
 
   test('GET /api/status should return system status envelope', async () => {
@@ -91,3 +117,4 @@ describe('Server REST API Integration Tests', () => {
     assert.ok(json.error.includes('not found'));
   });
 });
+

@@ -203,27 +203,6 @@
       <p class="platform-hint">
         💡 Merges video &amp; audio in original quality. Auto-deleted after 30 mins.
       </p>
-
-      <!-- Optional Cookies / Rate-Limit Bypass (Optional) -->
-      <div class="dl-cookies-section">
-        <div class="dl-cookies-header" onclick="toggleCookieBox()">
-          <span class="dl-cookies-title">🍪 Optional: Upload Cookies (For Better Reliability)</span>
-          <span id="dl-cookies-badge" class="cookie-status-badge none">Not Required</span>
-        </div>
-        <div id="dl-cookies-box" class="dl-cookies-box" style="display:none">
-          <p class="cookie-hint">Downloads work <strong>without cookies</strong> for most videos. Upload cookies to bypass rate limits or download age-restricted content:</p>
-          <div class="cookie-upload-row">
-            <input type="file" id="cookie-file-input" accept=".txt" style="display:none" onchange="uploadCookieFile(event)"/>
-            <button class="btn-cookie-upload" onclick="document.getElementById('cookie-file-input').click()">
-              📁 Upload cookies.txt (Optional)
-            </button>
-            <button class="btn-cookie-clear" id="btn-cookie-clear" onclick="clearCookies()" style="display:none">
-              🗑️ Remove
-            </button>
-          </div>
-          <p style="font-size: 0.75rem; color: #888; margin-top: 0.5rem;">✓ Downloads work without cookies • Cookies help for restricted content • No cookies = No authentication needed</p>
-        </div>
-      </div>
     </div>
 
     <!-- PUBLISH COMMAND CENTER -->

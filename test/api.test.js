@@ -88,8 +88,8 @@ describe('Server REST API Integration Tests', () => {
     assert.equal(json.success, true);
     assert.equal(typeof json.available, 'boolean');
     assert.ok(json.youtube);
-    assert.ok(json.instagram);
-    assert.equal(typeof json.youtube.ytdlpDirect, 'boolean');
+    assert.equal(typeof json.youtube.ytdlpDirect.healthy, 'boolean');
+    assert.equal(json.youtube.ytdlpDirect.configured, true);
   });
 
   test('POST /api/download should reject missing URL with 400', async () => {

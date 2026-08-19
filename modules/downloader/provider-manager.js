@@ -40,19 +40,15 @@ export class ProviderManager {
   }
 
   async runStartupHealthChecks() {
-    console.log('[PROVIDER] Running startup health checks…');
-    for (const [name, provider] of Object.entries(this.providers)) {
-      try {
-        const health = await provider.checkHealth();
-        if (health.available) {
-          console.log(`[PROVIDER] ${name} READY`);
-        } else {
-          console.log(`[PROVIDER] ${name} UNAVAILABLE (${health.reason || 'unreachable'})`);
-        }
-      } catch (e) {
-        console.log(`[PROVIDER] ${name} UNAVAILABLE (${e.message})`);
-      }
-    }
+    const ytDirect = await this.providers['ytdlp-direct'].checkHealth();
+    const ytPo = await this.providers['ytdlp-po'].checkHealth();
+    const bgutil = await this.providers['bgutil'].checkHealth();
+    const cobalt = await this.providers['cobalt'].checkHealth();
+
+    console.log(`[PROVIDER] yt-dlp direct ${ytDirect.available ? 'READY' : 'UNAVAILABLE'}`);
+    console.log(`[PROVIDER] yt-dlp PO ${ytPo.available ? 'READY' : 'UNAVAILABLE' + (ytPo.reason ? ' (' + ytPo.reason + ')' : '')}`);
+    console.log(`[PROVIDER] bgutil ${bgutil.available ? 'READY' : 'UNAVAILABLE' + (bgutil.reason ? ' (' + bgutil.reason + ')' : '')}`);
+    console.log(`[PROVIDER] Cobalt ${cobalt.available ? 'READY' : 'UNAVAILABLE' + (cobalt.reason ? ' (' + cobalt.reason + ')' : '')}`);
   }
 
   /**
@@ -258,15 +254,39 @@ export class ProviderManager {
     return {
       available: true,
       youtube: {
-        ytdlpPo: ytPoHealth.available,
-        bgutil: bgutilHealth.available,
-        ytdlpDirect: ytDirectHealth.available,
-        cobalt: cobaltHealth.available
+        ytdlpPo: {
+          configured: Boolean(this.providers['ytdlp-po'].getProviderEndpoint()),
+          healthy: ytPoHealth.available,
+          reason: ytPoHealth.reason || null
+        },
+        bgutil: {
+          configured: Boolean(this.providers['bgutil'].getEndpoint()),
+          healthy: bgutilHealth.available,
+          reason: bgutilHealth.reason || null
+        },
+        ytdlpDirect: {
+          configured: true,
+          healthy: ytDirectHealth.available
+        },
+        cobalt: {
+          configured: Boolean(this.providers['cobalt'].getEndpoint()),
+          healthy: cobaltHealth.available,
+          reason: cobaltHealth.reason || null
+        }
       },
       instagram: {
-        ytdlp: igYtHealth.available,
-        fallback: igFbHealth.available,
-        cobalt: cobaltHealth.available
+        ytdlp: {
+          configured: true,
+          healthy: igYtHealth.available
+        },
+        fallback: {
+          configured: true,
+          healthy: igFbHealth.available
+        },
+        cobalt: {
+          configured: Boolean(this.providers['cobalt'].getEndpoint()),
+          healthy: cobaltHealth.available
+        }
       },
       activeWorkers: this.jobQueue.activeWorkers,
       queueLength: this.jobQueue.queue.length

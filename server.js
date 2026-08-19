@@ -1001,15 +1001,17 @@ app.post('/api/download', async (req, res) => {
   try {
     let dlResult;
     if (isYouTube) {
-      // Profile strategy (clean, deterministic — no blind shotgun rotation):
-      // mweb: lightest client, works for metadata AND downloads on Render
-      // tv_embedded: second option — no sign-in required for most public videos
-      // web_embedded: third option — embedded player bypass
-      // default: yt-dlp auto-selects best available client
+      // Deterministic zero-cookie profile strategy:
+      // 1. mweb (lightweight, zero-cookie, high compatibility)
+      // 2. tv_embedded (no-login TV profile)
+      // 3. web_embedded (web iframe player)
+      // 4. android (mobile client)
+      // 5. default (yt-dlp auto-select)
       const ytProfiles = [
         'mweb',
         'tv_embedded',
         'web_embedded',
+        'android',
         'default'
       ];
       let lastErr = null;
@@ -1024,15 +1026,10 @@ app.post('/api/download', async (req, res) => {
         } catch (attemptErr) {
           lastErr = attemptErr;
           const errSnippet = attemptErr.message.substring(0, 200);
-          console.warn(`[DOWNLOAD] Profile '${profile}' failed: ${errSnippet}`);
-          // Stop retrying if the video is definitively unavailable
-          if (/video unavailable|private video|has been removed|is not available/i.test(attemptErr.message)) {
+          console.warn(`[DOWNLOAD] Profile '${profile}' notice: ${errSnippet}`);
+          // Stop retrying if the video is definitively unavailable or removed
+          if (/video unavailable|private video|this video has been removed|is not available|deleted|does not exist/i.test(attemptErr.message)) {
             console.warn(`[DOWNLOAD] Video is definitively unavailable — stopping profile rotation.`);
-            break;
-          }
-          // Stop retrying on bot verification — all profiles use the same IP so other profiles won't help
-          if (/sign in to confirm you'?re not a bot|bot.{0,30}verif/i.test(attemptErr.message)) {
-            console.warn(`[DOWNLOAD] YouTube bot-check detected — stopping profile rotation (IP-level block).`);
             break;
           }
         }
@@ -1115,12 +1112,12 @@ app.post('/api/download', async (req, res) => {
     let userMsg = 'Download failed. Please try again.';
 
     if (isYouTube) {
-      if (/sign in to confirm you'?re not a bot|bot.{0,30}verif|cookies-from-browser/i.test(errMsg)) {
-        errorCode = 'YOUTUBE_BOT_VERIFICATION';
-        userMsg = 'YouTube is currently blocking downloads from this server. This is a network-level restriction — the video exists but YouTube rejects unauthenticated requests from cloud datacenter IPs. Please try a different video or try again later.';
-      } else if (/video unavailable|private video|this video has been removed|is not available|deleted/i.test(errMsg)) {
+      if (/video unavailable|private video|this video has been removed|is not available|deleted|does not exist/i.test(errMsg)) {
         errorCode = 'YOUTUBE_UNAVAILABLE';
         userMsg = 'This YouTube video is unavailable, private, or has been removed.';
+      } else if (/sign in to confirm you'?re not a bot|bot.{0,30}verif|cookies-from-browser/i.test(errMsg)) {
+        errorCode = 'YOUTUBE_BOT_VERIFICATION';
+        userMsg = 'Unable to download this YouTube video right now due to YouTube verification restrictions. Please try another public video or link.';
       } else if (/sign in|login/i.test(errMsg)) {
         errorCode = 'YOUTUBE_BOT_VERIFICATION';
         userMsg = 'YouTube requires sign-in for this video from the current network. Please try a different public video.';

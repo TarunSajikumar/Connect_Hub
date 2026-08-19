@@ -50,6 +50,7 @@ import HistoryManager from './modules/history.js';
 import SchedulerModule from './modules/scheduler.js';
 import SessionManager from './modules/session_manager.js';
 import InstagramDownloader from './modules/instagram_downloader.js';
+import YouTubeDownloader from './modules/youtube_downloader.js';
 import AIAudioCaptioner from './modules/ai_audio_captioner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1006,44 +1007,16 @@ app.post('/api/download', async (req, res) => {
   try {
     let dlResult;
     if (isYouTube) {
-      // Deterministic zero-cookie profile strategy:
-      // 1. android_vr (YouTube Shorts & VR native client)
-      // 2. mweb (lightweight, zero-cookie, high compatibility)
-      // 3. tv_embedded (no-login TV profile)
-      // 4. web_embedded (web iframe player)
-      // 5. android (mobile client)
-      // 6. default (yt-dlp auto-select)
-      const ytProfiles = [
-        'android_vr',
-        'mweb',
-        'tv_embedded',
-        'web_embedded',
-        'android',
-        'default'
-      ];
-      let lastErr = null;
-      for (const profile of ytProfiles) {
-        try {
-          console.log(`[DOWNLOAD] Attempting profile: ${profile}...`);
-          dlResult = await executeYtDlp(profile);
-          if (dlResult && dlResult.filePath) {
-            console.log(`[DOWNLOAD] Profile '${profile}' succeeded.`);
-            break;
-          }
-        } catch (attemptErr) {
-          lastErr = attemptErr;
-          const errSnippet = attemptErr.message.substring(0, 200);
-          console.warn(`[DOWNLOAD] Profile '${profile}' notice: ${errSnippet}`);
-          // Stop retrying if the video is definitively unavailable or removed
-          if (/video unavailable|private video|this video has been removed|is not available|deleted|does not exist/i.test(attemptErr.message)) {
-            console.warn(`[DOWNLOAD] Video is definitively unavailable — stopping profile rotation.`);
-            break;
-          }
-        }
-      }
-      if (!dlResult && lastErr) {
-        throw lastErr;
-      }
+      dlResult = await YouTubeDownloader.download({
+        url: cleanUrl,
+        downloadsDir,
+        timestamp,
+        ytDlpCmd,
+        ffmpegCmd,
+        ffmpegAvailable,
+        denoCmd,
+        denoAvailable
+      });
     } else {
       dlResult = await executeYtDlp();
     }

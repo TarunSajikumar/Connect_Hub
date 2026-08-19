@@ -150,10 +150,11 @@ describe('Media Downloader — Provider Architecture Tests', () => {
     it('should return structured status envelope from getStatus()', async () => {
       const status = await providerManager.getStatus();
       assert.equal(status.available, true);
-      assert.equal(status.platforms.youtube, true);
-      assert.equal(status.platforms.instagram, true);
-      assert.ok(Array.isArray(status.providers));
-      assert.ok(status.providers.length >= 4);
+      assert.ok(status.youtube);
+      assert.ok(status.instagram);
+      assert.equal(typeof status.youtube.ytdlpDirect.healthy, 'boolean');
+      assert.equal(status.youtube.ytdlpDirect.configured, true);
+      assert.equal(typeof status.instagram.ytdlp.healthy, 'boolean');
     });
 
     it('should return safe structured diagnostic object without raw stderr', async () => {

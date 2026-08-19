@@ -730,6 +730,7 @@ app.post('/api/downloader/diagnose', async (req, res) => {
   const args = [
     '--no-playlist',
     '--force-ipv4',
+    '--geo-bypass',
     '-s',
     '--dump-json',
     '--no-check-certificates',
@@ -809,18 +810,33 @@ app.post('/api/download', async (req, res) => {
   // Clean and normalize input URL
   let cleanUrl = url.trim().replace(/^["']|["']$/g, '');
   
-  // Normalize YouTube short and mobile URLs
+  // Normalize YouTube videos, shorts, music, live, embed, and mobile URLs
   const shortsMatch = cleanUrl.match(/(?:youtube\.com|youtu\.be)\/shorts\/([a-zA-Z0-9_-]+)/i);
   if (shortsMatch) {
     cleanUrl = `https://www.youtube.com/watch?v=${shortsMatch[1]}`;
   } else {
-    const youtuBeMatch = cleanUrl.match(/youtu\.be\/([a-zA-Z0-9_-]+)/i);
-    if (youtuBeMatch && !cleanUrl.includes('/watch')) {
-      cleanUrl = `https://www.youtube.com/watch?v=${youtuBeMatch[1]}`;
+    const musicMatch = cleanUrl.match(/music\.youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]+)/i);
+    if (musicMatch) {
+      cleanUrl = `https://music.youtube.com/watch?v=${musicMatch[1]}`;
     } else {
-      const watchMatch = cleanUrl.match(/youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]+)/i);
-      if (watchMatch) {
-        cleanUrl = `https://www.youtube.com/watch?v=${watchMatch[1]}`;
+      const youtuBeMatch = cleanUrl.match(/youtu\.be\/([a-zA-Z0-9_-]+)/i);
+      if (youtuBeMatch && !cleanUrl.includes('/watch')) {
+        cleanUrl = `https://www.youtube.com/watch?v=${youtuBeMatch[1]}`;
+      } else {
+        const liveMatch = cleanUrl.match(/youtube\.com\/live\/([a-zA-Z0-9_-]+)/i);
+        if (liveMatch) {
+          cleanUrl = `https://www.youtube.com/watch?v=${liveMatch[1]}`;
+        } else {
+          const embedMatch = cleanUrl.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/i);
+          if (embedMatch) {
+            cleanUrl = `https://www.youtube.com/watch?v=${embedMatch[1]}`;
+          } else {
+            const watchMatch = cleanUrl.match(/(?:youtube\.com|m\.youtube\.com)\/watch\?.*v=([a-zA-Z0-9_-]+)/i);
+            if (watchMatch) {
+              cleanUrl = `https://www.youtube.com/watch?v=${watchMatch[1]}`;
+            }
+          }
+        }
       }
     }
   }
@@ -840,8 +856,9 @@ app.post('/api/download', async (req, res) => {
     const args = [
       '--no-playlist',
       '--force-ipv4',
+      '--geo-bypass',          // Bypass region restrictions automatically across any region
       '--merge-output-format', 'mp4',
-      '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[ext=mp4]/best',
+      '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestaudio/best[ext=mp4]/best',
       '-o', outputTemplate,
       '--restrict-filenames',   // ensures safe ASCII-only filenames on all OS
       '--no-warnings',
@@ -868,6 +885,10 @@ app.post('/api/download', async (req, res) => {
     }
 
     if (isYouTube) {
+      const isMusicUrl = /music\.youtube\.com/i.test(cleanUrl);
+      if (isMusicUrl) {
+        args.push('--extractor-args', 'youtubemusic:player_client=web,android');
+      }
       if (clientProfile && clientProfile !== 'default') {
         args.push('--extractor-args', `youtube:player_client=${clientProfile}`);
       }
@@ -1032,6 +1053,11 @@ app.post('/api/download', async (req, res) => {
       : ext === '.mkv' ? 'video/x-matroska'
       : ext === '.mp3' ? 'audio/mpeg'
       : ext === '.m4a' ? 'audio/mp4'
+      : ext === '.opus' ? 'audio/opus'
+      : ext === '.ogg' ? 'audio/ogg'
+      : ext === '.wav' ? 'audio/wav'
+      : ext === '.flac' ? 'audio/flac'
+      : ext === '.aac' ? 'audio/aac'
       : 'application/octet-stream';
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);

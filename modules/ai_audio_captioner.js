@@ -47,6 +47,7 @@ export class AIAudioCaptioner {
       const args = [
         '--no-playlist',
         '--force-ipv4',
+        '--geo-bypass',
         '--dump-json',
         '--skip-download',
         '--no-warnings',
@@ -55,7 +56,7 @@ export class AIAudioCaptioner {
       ];
 
       if (isYouTube) {
-        args.push('--extractor-args', 'youtube:player_client=android,tv_embedded,mweb');
+        args.push('--extractor-args', 'youtube:player_client=mweb,tv_embedded,web_embedded');
       }
 
       args.push(url);

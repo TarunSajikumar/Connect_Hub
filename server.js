@@ -836,16 +836,17 @@ app.post('/api/download', async (req, res) => {
   // Using timestamp + ID ensures 100% valid ASCII filename across Windows NTFS and Linux
   const outputTemplate = path.join(downloadsDir, `${timestamp}_%(id)s.%(ext)s`);
 
-  const executeYtDlp = (clientProfile = 'android,tv_embedded,mweb') => {
+  const executeYtDlp = (clientProfile = 'mweb') => {
     const args = [
       '--no-playlist',
       '--force-ipv4',
       '--merge-output-format', 'mp4',
       '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best[ext=mp4]/best',
       '-o', outputTemplate,
+      '--restrict-filenames',   // ensures safe ASCII-only filenames on all OS
       '--no-warnings',
-      '--retries', '5',
-      '--fragment-retries', '5',
+      '--retries', '3',
+      '--fragment-retries', '3',
       '--skip-unavailable-fragments',
       '--no-check-certificates',
       '--socket-timeout', '30'
@@ -858,13 +859,12 @@ app.post('/api/download', async (req, res) => {
       args.push('--js-runtimes', 'node');
     }
 
-
-    if (process.platform === 'win32') {
-      args.push('--windows-filenames');
-    }
-
     if (ffmpegAvailable && ffmpegCmd) {
-      args.push('--ffmpeg-location', path.isAbsolute(ffmpegCmd) ? ffmpegCmd : path.dirname(ffmpegCmd) || ffmpegCmd);
+      // Pass the directory that contains ffmpeg, not the binary itself
+      const ffmpegDir = path.isAbsolute(ffmpegCmd)
+        ? path.dirname(ffmpegCmd)
+        : (path.dirname(ffmpegCmd) || '.');
+      args.push('--ffmpeg-location', ffmpegDir);
     }
 
     if (isYouTube) {
@@ -901,38 +901,61 @@ app.post('/api/download', async (req, res) => {
         clearTimeout(timeout);
         if (code === 0) {
           const lines = stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+          // --print title fires first, --print after_move:filepath fires after merge
           const videoTitle = lines.length > 1 ? lines[0] : '';
-          
-          let foundPath = null;
-          // Primary: look up final merged file matching timestamp in downloadsDir
-          try {
-            const matchingFiles = fs.readdirSync(downloadsDir)
-              .filter(f => f.startsWith(String(timestamp)) && !/\.f\d+\./i.test(f) && !f.endsWith('.part'))
-              .map(f => ({ f, full: path.join(downloadsDir, f), t: fs.statSync(path.join(downloadsDir, f)).mtimeMs }))
-              .sort((a, b) => b.t - a.t);
-            if (matchingFiles.length > 0) {
-              foundPath = matchingFiles[0].full;
-            }
-          } catch (e) {}
 
-          // Secondary: check paths from stdout (filter out temporary stream fragments)
-          if (!foundPath) {
-            for (let i = lines.length - 1; i >= 0; i--) {
-              if (fs.existsSync(lines[i]) && !/\.f\d+\./i.test(lines[i]) && !lines[i].endsWith('.part')) {
-                foundPath = lines[i];
-                break;
-              }
+          let foundPath = null;
+
+          // Primary: path printed by --print after_move:filepath (most reliable when it fires)
+          for (let i = lines.length - 1; i >= 0; i--) {
+            const candidate = lines[i];
+            // Skip the title line and any stream fragment paths (.fNNN.)
+            if (
+              candidate !== videoTitle &&
+              fs.existsSync(candidate) &&
+              !/\.f\d+\./i.test(candidate) &&
+              !candidate.endsWith('.part')
+            ) {
+              foundPath = candidate;
+              break;
             }
+          }
+
+          // Secondary: scan downloads dir for any file matching our timestamp prefix
+          if (!foundPath) {
+            try {
+              const matchingFiles = fs.readdirSync(downloadsDir)
+                .filter(f =>
+                  f.startsWith(String(timestamp)) &&
+                  !/\.f\d+\./i.test(f) &&
+                  !f.endsWith('.part') &&
+                  !f.endsWith('.ytdl')
+                )
+                .map(f => ({ f, full: path.join(downloadsDir, f), t: fs.statSync(path.join(downloadsDir, f)).mtimeMs }))
+                .sort((a, b) => b.t - a.t);
+              if (matchingFiles.length > 0) {
+                foundPath = matchingFiles[0].full;
+              }
+            } catch (e) {}
           }
 
           if (foundPath && fs.existsSync(foundPath)) {
-            resolve({ filePath: foundPath, videoTitle });
+            const fstat = fs.statSync(foundPath);
+            if (fstat.size === 0) {
+              reject(new Error('Download completed but output file is empty (0 bytes)'));
+            } else {
+              resolve({ filePath: foundPath, videoTitle });
+            }
           } else {
+            // Log raw stdout/stderr for debugging
+            console.warn(`[DOWNLOAD] File not located. stdout lines: ${JSON.stringify(lines)}`);
             reject(new Error('Download completed but output file could not be located'));
           }
         } else {
-          const fullErr = (stderr || stdout).replace(/\x1b\[[0-9;]*m/g, '').trim();
-          reject(new Error(fullErr || 'Download failed'));
+          const rawErr = (stderr || stdout).replace(/\x1b\[[0-9;]*m/g, '').trim();
+          // Log the raw yt-dlp error for diagnostics
+          console.warn(`[DOWNLOAD] yt-dlp exit ${code}: ${rawErr.substring(0, 500)}`);
+          reject(new Error(rawErr || 'Download failed'));
         }
       });
 
@@ -955,12 +978,15 @@ app.post('/api/download', async (req, res) => {
   try {
     let dlResult;
     if (isYouTube) {
+      // Profile strategy (clean, deterministic — no blind shotgun rotation):
+      // mweb: lightest client, works for metadata AND downloads on Render
+      // tv_embedded: second option — no sign-in required for most public videos
+      // web_embedded: third option — embedded player bypass
+      // default: yt-dlp auto-selects best available client
       const ytProfiles = [
-        'android,tv_embedded,mweb',
-        'android',
-        'tv_embedded',
         'mweb',
-        'android_creator',
+        'tv_embedded',
+        'web_embedded',
         'default'
       ];
       let lastErr = null;
@@ -968,10 +994,19 @@ app.post('/api/download', async (req, res) => {
         try {
           console.log(`[DOWNLOAD] Attempting profile: ${profile}...`);
           dlResult = await executeYtDlp(profile);
-          if (dlResult && dlResult.filePath) break;
+          if (dlResult && dlResult.filePath) {
+            console.log(`[DOWNLOAD] Profile '${profile}' succeeded.`);
+            break;
+          }
         } catch (attemptErr) {
           lastErr = attemptErr;
-          console.warn(`[DOWNLOAD] Profile '${profile}' notice: ${attemptErr.message}`);
+          const errSnippet = attemptErr.message.substring(0, 200);
+          console.warn(`[DOWNLOAD] Profile '${profile}' failed: ${errSnippet}`);
+          // If the error is definitive (unavailable/removed), don't retry other profiles
+          if (/video unavailable|private video|has been removed|is not available/i.test(attemptErr.message)) {
+            console.warn(`[DOWNLOAD] Video is definitively unavailable — stopping profile rotation.`);
+            break;
+          }
         }
       }
       if (!dlResult && lastErr) {
@@ -1047,24 +1082,30 @@ app.post('/api/download', async (req, res) => {
     let userMsg = 'Download failed. Please try again.';
 
     if (isYouTube) {
-      if (/bot|sign in to confirm you're not a bot|confirm your age|cookies-from-browser|sign in/i.test(errMsg)) {
+      if (/sign in to confirm you'?re not a bot|bot.{0,30}verif|cookies-from-browser/i.test(errMsg)) {
         errorCode = 'YOUTUBE_BOT_VERIFICATION';
-        userMsg = 'Unable to download this YouTube video right now. YouTube requires sign-in verification for this network.';
-      } else if (/video unavailable|private video|this video has been removed|deleted/i.test(errMsg)) {
+        userMsg = 'YouTube is currently blocking downloads from this server. This is a network-level restriction — the video exists but YouTube rejects unauthenticated requests from cloud datacenter IPs. Please try a different video or try again later.';
+      } else if (/video unavailable|private video|this video has been removed|is not available|deleted/i.test(errMsg)) {
         errorCode = 'YOUTUBE_UNAVAILABLE';
         userMsg = 'This YouTube video is unavailable, private, or has been removed.';
+      } else if (/sign in|login/i.test(errMsg)) {
+        errorCode = 'YOUTUBE_BOT_VERIFICATION';
+        userMsg = 'YouTube requires sign-in for this video from the current network. Please try a different public video.';
       } else if (/timed out/i.test(errMsg)) {
         errorCode = 'DOWNLOAD_TIMEOUT';
-        userMsg = 'The download timed out. Please try again with a shorter video or different link.';
+        userMsg = 'The download timed out. Please try a shorter video or try again.';
+      } else if (/output file could not be located|output file is empty/i.test(errMsg)) {
+        errorCode = 'FILE_NOT_FOUND';
+        userMsg = 'Download appeared to complete but the file could not be saved. Please try again.';
       } else if (/ffmpeg/i.test(errMsg)) {
         errorCode = 'FFMPEG_ERROR';
-        userMsg = 'Video processing error on the server.';
+        userMsg = 'Video processing error on the server. Please try again.';
       } else if (/network|getaddrinfo|econnreset|socket timeout|connection/i.test(errMsg)) {
         errorCode = 'NETWORK_ERROR';
         userMsg = 'Network connectivity issue. Please try again.';
       } else {
         errorCode = 'YTDLP_ERROR';
-        userMsg = 'Unable to download this YouTube video right now. Please try another video or link.';
+        userMsg = 'Unable to download this YouTube video right now. Please try another public video.';
       }
     }
 

@@ -163,6 +163,36 @@ if (!ffmpegAvailable) {
   }
 }
 
+// ─── Deno JS Runtime availability for yt-dlp JS Challenges ────
+let denoAvailable = false;
+let denoCmd = null;
+const localLinuxDeno = path.join(__dirname, 'deno');
+const localWinDeno = path.join(__dirname, 'deno.exe');
+
+if (fs.existsSync(localLinuxDeno)) {
+  try {
+    execSync(`chmod +x "${localLinuxDeno}"`, { stdio: 'ignore' });
+    denoCmd = localLinuxDeno;
+    denoAvailable = true;
+    console.log('  ✅ deno     — Local Linux standalone binary ready');
+  } catch (e) {}
+} else if (process.platform === 'win32' && fs.existsSync(localWinDeno)) {
+  denoCmd = localWinDeno;
+  denoAvailable = true;
+} else {
+  try {
+    execSync('deno --version', { stdio: 'ignore' });
+    denoCmd = 'deno';
+    denoAvailable = true;
+    console.log('  ✅ deno     — System binary ready');
+  } catch (e) {}
+}
+
+// Ensure local workspace binaries are discoverable in PATH
+if (process.platform === 'linux') {
+  process.env.PATH = `${__dirname}:${process.env.PATH}`;
+}
+
 // ─── yt-dlp availability & version check ────────────────────────
 let ytDlpAvailable = false;
 let ytDlpCmd = 'yt-dlp';
@@ -226,6 +256,7 @@ if (!ytDlpAvailable) {
     }
   }
 }
+
 
 // ─── File Upload (multer) ────────────────────────────────────
 const storage = multer.diskStorage({
@@ -678,11 +709,12 @@ app.get('/api/health', (req, res) => {
     ytDlpVersion: ytDlpVersion || null,
     ffmpegAvailable: !!ffmpegAvailable,
     ffmpegCmd: ffmpegCmd ? path.basename(ffmpegCmd) : null,
+    denoAvailable: !!denoAvailable,
     timestamp: new Date().toISOString()
   });
 });
 
-// ─── API: Media Downloader ────────────────────────────────────
+// ─── API: Downloader Status ──────────────────────────────────
 app.get('/api/downloader/status', (req, res) => {
   res.json({
     success: true,
@@ -690,17 +722,87 @@ app.get('/api/downloader/status', (req, res) => {
   });
 });
 
+// ─── API: Downloader Diagnostics ─────────────────────────────
+app.post('/api/downloader/diagnose', async (req, res) => {
+  const testUrl = req.body?.url || 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
+  const profile = req.body?.profile || 'android,tv_embedded,mweb';
+
+  const args = [
+    '--no-playlist',
+    '--force-ipv4',
+    '-s',
+    '--dump-json',
+    '--no-check-certificates',
+    '--socket-timeout', '15'
+  ];
+
+  if (denoAvailable && denoCmd) {
+    args.push('--js-runtimes', `deno:${denoCmd},node`);
+  } else {
+    args.push('--js-runtimes', 'node');
+  }
+
+  if (profile && profile !== 'default') {
+    args.push('--extractor-args', `youtube:player_client=${profile}`);
+  }
+
+  args.push(testUrl);
+
+  try {
+    const proc = spawn(ytDlpCmd, args);
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', d => { stdout += d.toString(); });
+    proc.stderr.on('data', d => { stderr += d.toString(); });
+
+    const timeout = setTimeout(() => {
+      proc.kill();
+    }, 25000);
+
+    proc.on('close', (exitCode) => {
+      clearTimeout(timeout);
+      let parsed = null;
+      try {
+        parsed = JSON.parse(stdout);
+      } catch (e) {}
+
+      res.json({
+        success: exitCode === 0,
+        exitCode,
+        url: testUrl,
+        profile,
+        title: parsed?.title || null,
+        duration: parsed?.duration || null,
+        formatCount: parsed?.formats?.length || 0,
+        ytDlpVersion,
+        nodeVersion: process.version,
+        platform: process.platform,
+        denoAvailable,
+        ffmpegAvailable,
+        error: exitCode !== 0 ? stderr.trim() : null
+      });
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err.message
+    });
+  }
+});
+
 app.post('/api/download', async (req, res) => {
   if (!ytDlpAvailable) {
     return res.status(503).json({
       success: false,
+      code: 'YTDLP_INITIALIZING',
       error: 'yt-dlp engine is initializing on the server. Please try again in a few seconds.'
     });
   }
 
   const { url } = req.body;
   if (!url || !url.trim()) {
-    return res.status(400).json({ success: false, error: 'URL is required' });
+    return res.status(400).json({ success: false, code: 'URL_REQUIRED', error: 'URL is required' });
   }
 
   // Clean and normalize input URL
@@ -725,15 +827,15 @@ app.post('/api/download', async (req, res) => {
   const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(cleanUrl);
   const isInstagram = /instagram\.com/i.test(cleanUrl);
   if (!isYouTube && !isInstagram) {
-    return res.status(400).json({ success: false, error: 'Only Instagram and YouTube URLs are supported' });
+    return res.status(400).json({ success: false, code: 'UNSUPPORTED_PLATFORM', error: 'Only Instagram and YouTube URLs are supported' });
   }
 
   const downloadsDir = path.join(__dirname, 'downloads');
   const timestamp = Date.now();
-  // Using timestamp + ID ensures 100% valid ASCII filename across Windows NTFS and Unicode titles
+  // Using timestamp + ID ensures 100% valid ASCII filename across Windows NTFS and Linux
   const outputTemplate = path.join(downloadsDir, `${timestamp}_%(id)s.%(ext)s`);
 
-  const executeYtDlp = (clientProfile = 'android_vr,android,web') => {
+  const executeYtDlp = (clientProfile = 'android,tv_embedded,mweb') => {
     const args = [
       '--no-playlist',
       '--force-ipv4',
@@ -747,6 +849,13 @@ app.post('/api/download', async (req, res) => {
       '--no-check-certificates',
       '--socket-timeout', '30'
     ];
+
+    // Configure JavaScript Runtime Challenge Solvers for YouTube n-sig / bot-checks
+    if (denoAvailable && denoCmd) {
+      args.push('--js-runtimes', `deno:${denoCmd},node`);
+    } else {
+      args.push('--js-runtimes', 'node');
+    }
 
     if (process.platform === 'win32') {
       args.push('--windows-filenames');
@@ -845,10 +954,11 @@ app.post('/api/download', async (req, res) => {
     let dlResult;
     if (isYouTube) {
       const ytProfiles = [
-        'android_vr,android,web',
-        'android_vr,android',
-        'web,mweb',
-        'tv_embedded,tv',
+        'android,tv_embedded,mweb',
+        'android',
+        'tv_embedded',
+        'mweb',
+        'android_creator',
         'default'
       ];
       let lastErr = null;
@@ -899,7 +1009,8 @@ app.post('/api/download', async (req, res) => {
 
   } catch (err) {
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.warn(`[DOWNLOAD] Primary engine error (${duration}s): ${err.message}`);
+    const errMsg = err.message || 'Download failed';
+    console.warn(`[DOWNLOAD] Primary engine error (${duration}s): ${errMsg}`);
 
     // Automatic zero-cookie InstagramDownloader fallback engine
     if (isInstagram) {
@@ -922,28 +1033,47 @@ app.post('/api/download', async (req, res) => {
         });
       } catch (fallbackErr) {
         console.error('[DOWNLOAD] Zero-cookie fallback engine error:', fallbackErr.message);
-        return res.status(500).json({ success: false, code: 'INSTAGRAM_DOWNLOAD_FAILED', error: fallbackErr.message });
+        return res.status(500).json({
+          success: false,
+          code: 'INSTAGRAM_DOWNLOAD_FAILED',
+          error: fallbackErr.message || 'Unable to download this Instagram post. Please ensure the post is public.'
+        });
       }
     }
 
-    let cleanErr = (err.message || 'Download failed')
-      .split('\n')
-      .map(l => l.trim())
-      .filter(l => l && !l.startsWith('See https://') && !l.startsWith('Also see'))
-      .pop() || 'Download failed';
+    let errorCode = 'DOWNLOAD_FAILED';
+    let userMsg = 'Download failed. Please try again.';
 
-    if (/bot|sign in to confirm you're not a bot|429|forbidden/i.test(err.message)) {
-      console.warn(`[DOWNLOAD] YouTube bot verification / datacenter IP block: ${err.message}`);
-      cleanErr = 'Unable to download this YouTube video right now. Please try another video or link.';
+    if (isYouTube) {
+      if (/bot|sign in to confirm you're not a bot|confirm your age|cookies-from-browser|sign in/i.test(errMsg)) {
+        errorCode = 'YOUTUBE_BOT_VERIFICATION';
+        userMsg = 'Unable to download this YouTube video right now. YouTube requires sign-in verification for this network.';
+      } else if (/video unavailable|private video|this video has been removed|deleted/i.test(errMsg)) {
+        errorCode = 'YOUTUBE_UNAVAILABLE';
+        userMsg = 'This YouTube video is unavailable, private, or has been removed.';
+      } else if (/timed out/i.test(errMsg)) {
+        errorCode = 'DOWNLOAD_TIMEOUT';
+        userMsg = 'The download timed out. Please try again with a shorter video or different link.';
+      } else if (/ffmpeg/i.test(errMsg)) {
+        errorCode = 'FFMPEG_ERROR';
+        userMsg = 'Video processing error on the server.';
+      } else if (/network|getaddrinfo|econnreset|socket timeout|connection/i.test(errMsg)) {
+        errorCode = 'NETWORK_ERROR';
+        userMsg = 'Network connectivity issue. Please try again.';
+      } else {
+        errorCode = 'YTDLP_ERROR';
+        userMsg = 'Unable to download this YouTube video right now. Please try another video or link.';
+      }
     }
 
     res.status(500).json({
       success: false,
-      code: isYouTube ? 'YOUTUBE_DOWNLOAD_UNAVAILABLE' : 'DOWNLOAD_FAILED',
-      error: cleanErr
+      code: errorCode,
+      error: userMsg
     });
   }
 });
+
 
 // Serve downloaded files (for browser fetch / use-in-upload)
 app.get('/api/download/file/:filename', (req, res) => {

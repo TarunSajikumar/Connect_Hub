@@ -1,7 +1,6 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import https from 'https';
 
 export async function ensureLatestYtDlp() {
   if (process.platform !== 'linux') {
@@ -17,8 +16,14 @@ export async function ensureLatestYtDlp() {
       console.log('[Setup] Downloading latest standalone yt-dlp binary from GitHub releases...');
       execSync('curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o ./yt-dlp && chmod +x ./yt-dlp', { stdio: 'inherit' });
     } else {
-      // Ensure execute permission
       execSync('chmod +x ./yt-dlp', { stdio: 'inherit' });
+    }
+
+    if (fs.existsSync(path.resolve('deno'))) {
+      try { execSync('chmod +x ./deno', { stdio: 'ignore' }); } catch {}
+    }
+    if (fs.existsSync(path.resolve('ffmpeg'))) {
+      try { execSync('chmod +x ./ffmpeg', { stdio: 'ignore' }); } catch {}
     }
 
     const version = execSync('./yt-dlp --version').toString().trim();
@@ -29,3 +34,4 @@ export async function ensureLatestYtDlp() {
     return 'yt-dlp';
   }
 }
+

@@ -91,6 +91,43 @@ describe('Server REST API Integration Tests', () => {
     assert.equal(typeof json.available, 'boolean');
   });
 
+  test('POST /api/download should reject missing URL with 400', async () => {
+    const res = await fetch(`${baseUrl}/api/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: '' })
+    });
+    assert.equal(res.status, 400);
+    const json = await res.json();
+    assert.equal(json.success, false);
+    assert.equal(json.code, 'URL_REQUIRED');
+  });
+
+  test('POST /api/download should reject unsupported platforms with 400', async () => {
+    const res = await fetch(`${baseUrl}/api/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://example.com/video.mp4' })
+    });
+    assert.equal(res.status, 400);
+    const json = await res.json();
+    assert.equal(json.success, false);
+    assert.equal(json.code, 'UNSUPPORTED_PLATFORM');
+  });
+
+  test('POST /api/downloader/diagnose should return diagnostic envelope', async () => {
+    const res = await fetch(`${baseUrl}/api/downloader/diagnose`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw' })
+    });
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(typeof json.success, 'boolean');
+    assert.ok('nodeVersion' in json);
+    assert.ok('platform' in json);
+  });
+
   test('POST /api/ai/transcribe-caption should synthesize AI caption', async () => {
     const res = await fetch(`${baseUrl}/api/ai/transcribe-caption`, {
       method: 'POST',
@@ -117,4 +154,5 @@ describe('Server REST API Integration Tests', () => {
     assert.ok(json.error.includes('not found'));
   });
 });
+
 

@@ -43,17 +43,27 @@ export class AIAudioCaptioner {
    */
   static async extractFromUrl(url, ytDlpCmd = 'yt-dlp') {
     return new Promise((resolve) => {
+      const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(url);
       const args = [
         '--no-playlist',
+        '--force-ipv4',
         '--dump-json',
         '--skip-download',
         '--no-warnings',
-        url
+        '--js-runtimes', 'node',
+        '--socket-timeout', '20'
       ];
+
+      if (isYouTube) {
+        args.push('--extractor-args', 'youtube:player_client=android,tv_embedded,mweb');
+      }
+
+      args.push(url);
 
       const proc = spawn(ytDlpCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
       let stdout = '';
       let stderr = '';
+
 
       proc.stdout.on('data', d => { stdout += d.toString(); });
       proc.stderr.on('data', d => { stderr += d.toString(); });

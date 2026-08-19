@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
-console.log('[Build Setup] Checking environment, yt-dlp, and ffmpeg binaries...');
+console.log('[Build Setup] Checking environment, yt-dlp, ffmpeg, and JS runtime binaries...');
 
 if (process.platform === 'linux') {
   // 1. Download official latest yt-dlp standalone binary
@@ -34,7 +34,27 @@ if (process.platform === 'linux') {
   } catch (e) {
     console.warn('[Build Setup] Notice: Could not download static ffmpeg:', e.message);
   }
+
+  // 3. Download standalone Deno binary for Linux if not present (JS Challenge solver for yt-dlp)
+  try {
+    let hasSystemDeno = false;
+    try {
+      execSync('deno --version', { stdio: 'ignore' });
+      hasSystemDeno = true;
+      console.log('✅ [Build Setup] System deno is already available.');
+    } catch {}
+
+    if (!hasSystemDeno && !fs.existsSync('./deno')) {
+      console.log('[Build Setup] Downloading standalone Deno binary for Linux JS challenge execution...');
+      execSync('curl -fsSL https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip -o ./deno.zip && unzip -o ./deno.zip && chmod +x ./deno && rm -f ./deno.zip', { stdio: 'inherit' });
+      const denoVer = execSync('./deno --version').toString().split('\n')[0].trim();
+      console.log(`✅ [Build Setup] Successfully installed Deno (${denoVer}) for Linux!`);
+    }
+  } catch (e) {
+    console.warn('[Build Setup] Notice: Deno standalone download fallback (Node.js runtime will be used):', e.message);
+  }
 } else {
   console.log('[Build Setup] Running on', process.platform, '- using local environment binaries');
 }
+
 

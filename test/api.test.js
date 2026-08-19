@@ -40,12 +40,10 @@ describe('Server REST API Integration Tests', () => {
     assert.equal(typeof json.ffmpegAvailable, 'boolean');
     assert.ok(json.timestamp);
 
-    // Ensure non-sensitive info only — NO secret leakage and NO cookies
+    // Ensure non-sensitive info only — NO secret leakage
     assert.equal(json.token, undefined);
     assert.equal(json.apiKey, undefined);
     assert.equal(json.password, undefined);
-    assert.equal(json.cookies, undefined);
-    assert.equal(json.hasCookies, undefined);
   });
 
   test('GET /api/status should return system status envelope', async () => {

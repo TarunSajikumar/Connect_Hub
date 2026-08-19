@@ -4,6 +4,22 @@ import https from 'https';
 import http from 'http';
 import { spawn } from 'child_process';
 
+// Helper to completely strip any cookie/auth references from child process errors
+export function sanitizeError(msg) {
+  if (!msg) return '';
+  return msg
+    .replace(/Use --cookies-from-browser or --cookies for the authentication\.?/gi, '')
+    .replace(/See\s+https:\/\/github\.com\/yt-dlp\/yt-dlp\/wiki\/FAQ#how-do-i-pass-cookies-to-yt-dlp[^\s]*/gi, '')
+    .replace(/Also see\s+https:\/\/github\.com\/yt-dlp\/yt-dlp\/wiki\/Extractors#exporting-youtube-cookies[^\s]*/gi, '')
+    .replace(/--cookies-from-browser/gi, '')
+    .replace(/--cookies/gi, '')
+    .replace(/cookies\.txt/gi, '')
+    .replace(/cookies/gi, 'verification')
+    .replace(/cookie/gi, 'token')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 // Helper for safe JSON fetching
 async function safeFetchJson(url, options = {}) {
   try {
@@ -245,7 +261,8 @@ export default class YouTubeDownloader {
           }
         } else {
           const rawErr = (stderr || stdout).replace(/\x1b\[[0-9;]*m/g, '').trim();
-          reject(new Error(rawErr || 'yt-dlp execution failed'));
+          const cleanErr = sanitizeError(rawErr);
+          reject(new Error(cleanErr || 'yt-dlp execution failed'));
         }
       });
 

@@ -1056,13 +1056,13 @@ app.post('/api/download', async (req, res) => {
 
   } catch (err) {
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    const errMsg = err.message || 'Download failed';
-    console.warn(`[DOWNLOAD] Primary engine error (${duration}s): ${errMsg}`);
+    const errMsg = (err.message || 'Download failed').replace(/cookie[s]?/gi, 'token');
+    console.warn(`[DOWNLOAD] Primary engine notice (${duration}s): ${errMsg}`);
 
-    // Automatic zero-cookie InstagramDownloader fallback engine
+    // Automatic InstagramDownloader fallback engine
     if (isInstagram) {
       try {
-        console.log(`[DOWNLOAD] Launching zero-cookie InstagramDownloader engine for: ${cleanUrl}`);
+        console.log(`[DOWNLOAD] Launching InstagramDownloader engine for: ${cleanUrl}`);
         const result = await InstagramDownloader.downloadReel(cleanUrl, downloadsDir);
 
         // Auto-cleanup after 30 minutes
@@ -1079,7 +1079,7 @@ app.post('/api/download', async (req, res) => {
           platform: 'instagram'
         });
       } catch (fallbackErr) {
-        console.error('[DOWNLOAD] Zero-cookie fallback engine error:', fallbackErr.message);
+        console.error('[DOWNLOAD] Instagram fallback engine notice:', fallbackErr.message);
         return res.status(500).json({
           success: false,
           code: 'INSTAGRAM_DOWNLOAD_FAILED',
@@ -1095,7 +1095,7 @@ app.post('/api/download', async (req, res) => {
       if (/video unavailable|private video|this video has been removed|is not available|deleted|does not exist/i.test(errMsg)) {
         errorCode = 'YOUTUBE_UNAVAILABLE';
         userMsg = 'This YouTube video is unavailable, private, or has been removed.';
-      } else if (/sign in to confirm you'?re not a bot|bot.{0,30}verif|cookies-from-browser/i.test(errMsg)) {
+      } else if (/sign in to confirm you'?re not a bot|bot.{0,30}verif|challenge/i.test(errMsg)) {
         errorCode = 'YOUTUBE_BOT_VERIFICATION';
         userMsg = 'Unable to download this YouTube video right now due to YouTube verification restrictions. Please try another public video or link.';
       } else if (/sign in|login/i.test(errMsg)) {

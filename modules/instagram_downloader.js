@@ -140,7 +140,7 @@ export default class InstagramDownloader {
       }
     }
 
-    // Candidate 2: Instagram Direct GraphQL API (Zero Cookie with App-ID header)
+    // Candidate 2: Instagram Direct GraphQL API (App-ID header)
     if (shortcode) {
       try {
         console.log('[IG Engine] Querying Instagram Direct GraphQL API...');

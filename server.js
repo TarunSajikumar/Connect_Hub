@@ -845,11 +845,11 @@ app.post('/api/download', async (req, res) => {
       '-o', outputTemplate,
       '--restrict-filenames',   // ensures safe ASCII-only filenames on all OS
       '--no-warnings',
-      '--retries', '3',
-      '--fragment-retries', '3',
+      '--retries', '1',
+      '--fragment-retries', '1',
       '--skip-unavailable-fragments',
       '--no-check-certificates',
-      '--socket-timeout', '30'
+      '--socket-timeout', '15'
     ];
 
     // Configure JavaScript Runtime Challenge Solvers for YouTube n-sig / bot-checks
@@ -892,10 +892,12 @@ app.post('/api/download', async (req, res) => {
       proc.stdout.on('data', d => { stdout += d.toString(); });
       proc.stderr.on('data', d => { stderr += d.toString(); });
 
+      // Per-attempt timeout: 60s is enough to detect bot-check (fails in ~20-40s)
+      // but still allows fast downloads to complete
       const timeout = setTimeout(() => {
         proc.kill();
-        reject(new Error('Download timed out after 5 minutes'));
-      }, 5 * 60 * 1000);
+        reject(new Error('Download timed out'));
+      }, 60 * 1000);
 
       proc.on('close', (code) => {
         clearTimeout(timeout);
@@ -1002,9 +1004,14 @@ app.post('/api/download', async (req, res) => {
           lastErr = attemptErr;
           const errSnippet = attemptErr.message.substring(0, 200);
           console.warn(`[DOWNLOAD] Profile '${profile}' failed: ${errSnippet}`);
-          // If the error is definitive (unavailable/removed), don't retry other profiles
+          // Stop retrying if the video is definitively unavailable
           if (/video unavailable|private video|has been removed|is not available/i.test(attemptErr.message)) {
             console.warn(`[DOWNLOAD] Video is definitively unavailable — stopping profile rotation.`);
+            break;
+          }
+          // Stop retrying on bot verification — all profiles use the same IP so other profiles won't help
+          if (/sign in to confirm you'?re not a bot|bot.{0,30}verif/i.test(attemptErr.message)) {
+            console.warn(`[DOWNLOAD] YouTube bot-check detected — stopping profile rotation (IP-level block).`);
             break;
           }
         }

@@ -737,10 +737,11 @@ app.post('/api/downloader/diagnose', async (req, res) => {
   ];
 
   if (denoAvailable && denoCmd) {
-    args.push('--js-runtimes', `deno:${denoCmd},node`);
+    args.push('--js-runtimes', `deno:${denoCmd}`, '--js-runtimes', 'node');
   } else {
     args.push('--js-runtimes', 'node');
   }
+
 
   if (profile && profile !== 'default') {
     args.push('--extractor-args', `youtube:player_client=${profile}`);
@@ -852,10 +853,11 @@ app.post('/api/download', async (req, res) => {
 
     // Configure JavaScript Runtime Challenge Solvers for YouTube n-sig / bot-checks
     if (denoAvailable && denoCmd) {
-      args.push('--js-runtimes', `deno:${denoCmd},node`);
+      args.push('--js-runtimes', `deno:${denoCmd}`, '--js-runtimes', 'node');
     } else {
       args.push('--js-runtimes', 'node');
     }
+
 
     if (process.platform === 'win32') {
       args.push('--windows-filenames');

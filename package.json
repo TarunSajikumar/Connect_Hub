@@ -9,6 +9,7 @@
     "build": "node scripts/setup-ytdlp.mjs",
     "postinstall": "node scripts/setup-ytdlp.mjs",
     "bot": "node bot.js",
+    "tunnel": "node scripts/tunnel.mjs",
     "test": "node --test test/*.test.js"
   },
   "dependencies": {

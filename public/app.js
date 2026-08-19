@@ -1293,7 +1293,7 @@ async function startDownload() {
   // Animate the progress bar (indeterminate)
   let pct = 5;
   const pctInterval = setInterval(() => {
-    pct = Math.min(pct + (Math.random() * 8), 88);
+    pct = Math.min(pct + (Math.random() * 6), 88);
     if (progressFill) progressFill.style.width = pct + '%';
   }, 600);
 
@@ -1307,59 +1307,82 @@ async function startDownload() {
       : '⬇️ Downloading…';
   }
 
-  const stepTimer1 = setTimeout(() => {
-    if (progressText && dlBtn?.disabled) {
-      progressText.textContent = '🔄 Trying primary download engine…';
-    }
-  }, 10000);
+  let pollInterval = null;
 
-  const stepTimer2 = setTimeout(() => {
-    if (progressText && dlBtn?.disabled) {
-      progressText.textContent = '🔄 Trying fallback download engine…';
-    }
-  }, 22000);
-
-  try {
-    const abortController = new AbortController();
-    const clientTimeout = setTimeout(() => abortController.abort(), 55000);
-
-    const response = await fetch('/api/download', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-      signal: abortController.signal
-    });
-    clearTimeout(clientTimeout);
-    const res = await response.json();
+  const cleanupUi = () => {
     clearInterval(pctInterval);
-    clearTimeout(stepTimer1);
-    clearTimeout(stepTimer2);
-
-    if (res.success) {
-      if (progressFill) progressFill.style.width = '100%';
-      if (progressFill) progressFill.style.animation = 'none';
-      if (progressFill) progressFill.style.background = 'var(--green)';
-      setTimeout(() => {
-        if (progressEl) progressEl.style.display = 'none';
-        if (progressFill) { progressFill.style.width = '0%'; progressFill.style.animation = ''; progressFill.style.background = ''; }
-      }, 600);
-
-      onDownloadComplete(res);
-    } else {
-      if (progressEl) progressEl.style.display = 'none';
-      showDlError(res.error || 'Unable to retrieve this media.');
-    }
-  } catch (e) {
-    clearInterval(pctInterval);
-    clearTimeout(stepTimer1);
-    clearTimeout(stepTimer2);
-    if (progressEl) progressEl.style.display = 'none';
-    showDlError(e.name === 'AbortError' ? 'Download request timed out. Please try again.' : (e.message || 'Download failed.'));
-  } finally {
-    clearTimeout(stepTimer1);
-    clearTimeout(stepTimer2);
+    if (pollInterval) clearInterval(pollInterval);
     if (dlBtn) dlBtn.disabled = false;
     if (btnText) btnText.textContent = 'Download';
+  };
+
+  try {
+    const startRes = await fetch('/api/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+
+    const initData = await startRes.json();
+    if (!initData.success || !initData.jobId) {
+      cleanupUi();
+      if (progressEl) progressEl.style.display = 'none';
+      return showDlError(initData.error || 'Unable to start download job.');
+    }
+
+    const jobId = initData.jobId;
+    const startTime = Date.now();
+    const maxWaitMs = 55000;
+
+    pollInterval = setInterval(async () => {
+      // Frontend safety watchdog
+      if (Date.now() - startTime > maxWaitMs) {
+        cleanupUi();
+        if (progressEl) progressEl.style.display = 'none';
+        return showDlError('The download request took too long and timed out. Please try again.');
+      }
+
+      try {
+        const pollRes = await fetch(`/api/download/job/${encodeURIComponent(jobId)}`);
+        if (!pollRes.ok) return;
+
+        const jobData = await pollRes.json();
+
+        if (jobData.status === 'success') {
+          cleanupUi();
+          if (progressFill) {
+            progressFill.style.width = '100%';
+            progressFill.style.animation = 'none';
+            progressFill.style.background = 'var(--green)';
+          }
+          setTimeout(() => {
+            if (progressEl) progressEl.style.display = 'none';
+            if (progressFill) { progressFill.style.width = '0%'; progressFill.style.animation = ''; progressFill.style.background = ''; }
+          }, 600);
+
+          onDownloadComplete(jobData);
+        } else if (jobData.status === 'failed') {
+          cleanupUi();
+          if (progressEl) progressEl.style.display = 'none';
+          showDlError(jobData.error || 'Unable to retrieve this public media from the available engines.');
+        } else if (jobData.status === 'processing' || jobData.status === 'PROVIDER_FALLBACK') {
+          if (progressText) {
+            if (jobData.currentProvider) {
+              progressText.textContent = `🔄 Trying download engine…`;
+            } else {
+              progressText.textContent = '⬇️ Processing download…';
+            }
+          }
+        }
+      } catch (pollErr) {
+        // Network blip, continue polling until watchdog
+      }
+    }, 1000);
+
+  } catch (e) {
+    cleanupUi();
+    if (progressEl) progressEl.style.display = 'none';
+    showDlError(e.message || 'Download failed. Please try again.');
   }
 }
 

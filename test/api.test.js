@@ -81,12 +81,15 @@ describe('Server REST API Integration Tests', () => {
     assert.ok(Array.isArray(json.jobs));
   });
 
-  test('GET /api/downloader/status should return yt-dlp status', async () => {
+  test('GET /api/downloader/status should return provider health status', async () => {
     const res = await fetch(`${baseUrl}/api/downloader/status`);
     assert.equal(res.status, 200);
     const json = await res.json();
     assert.equal(json.success, true);
     assert.equal(typeof json.available, 'boolean');
+    assert.ok(json.youtube);
+    assert.ok(json.instagram);
+    assert.equal(typeof json.youtube.ytdlpDirect, 'boolean');
   });
 
   test('POST /api/download should reject missing URL with 400', async () => {
@@ -111,6 +114,25 @@ describe('Server REST API Integration Tests', () => {
     const json = await res.json();
     assert.equal(json.success, false);
     assert.equal(json.code, 'UNSUPPORTED_PLATFORM');
+  });
+
+  test('POST /api/download should dispatch async job and allow polling via /api/download/job/:jobId', async () => {
+    const res = await fetch(`${baseUrl}/api/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw' })
+    });
+    assert.equal(res.status, 200);
+    const json = await res.json();
+    assert.equal(json.success, true);
+    assert.ok(json.jobId);
+    assert.ok(json.status);
+
+    // Poll job status
+    const pollRes = await fetch(`${baseUrl}/api/download/job/${json.jobId}`);
+    assert.equal(pollRes.status, 200);
+    const pollJson = await pollRes.json();
+    assert.ok(pollJson.status);
   });
 
   test('POST /api/downloader/diagnose should return safe diagnostic envelope', async () => {

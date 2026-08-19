@@ -3,6 +3,7 @@
 // Central Provider Orchestration, Circuit Breaker & Failover
 // ============================================================
 
+import path from 'path';
 import { YtDlpPoProvider } from './providers/ytdlp-po.js';
 import { BgutilYtDlpProvider } from './providers/bgutil-ytdlp.js';
 import { YtDlpDirectProvider } from './providers/ytdlp-direct.js';
@@ -12,23 +13,46 @@ import { InstagramFallbackProvider } from './providers/instagram-fallback.js';
 import { FileManager } from './file-manager.js';
 import { MediaValidator } from './media-validator.js';
 import { classifyError, ErrorCodes } from './errors.js';
+import { JobQueue, JobStates } from './job-queue.js';
 
 export class ProviderManager {
   constructor() {
     this.providers = {
-      'yt-dlp-po': new YtDlpPoProvider(),
+      'ytdlp-po': new YtDlpPoProvider(),
       'bgutil': new BgutilYtDlpProvider(),
-      'yt-dlp-direct': new YtDlpDirectProvider(),
+      'ytdlp-direct': new YtDlpDirectProvider(),
       'cobalt': new CobaltProvider(),
       'instagram-ytdlp': new InstagramYtDlpProvider(),
       'instagram-fallback': new InstagramFallbackProvider()
     };
 
-    this.youtubePipeline = ['yt-dlp-po', 'bgutil', 'yt-dlp-direct', 'cobalt'];
+    this.youtubePipeline = ['ytdlp-po', 'bgutil', 'ytdlp-direct', 'cobalt'];
     this.instagramPipeline = ['instagram-ytdlp', 'instagram-fallback', 'cobalt'];
 
     // Purge orphaned files on startup
     FileManager.purgeOrphanedFiles();
+
+    // Initialize Job Queue
+    this.jobQueue = new JobQueue(this);
+
+    // Run startup health check
+    this.runStartupHealthChecks();
+  }
+
+  async runStartupHealthChecks() {
+    console.log('[PROVIDER] Running startup health checks…');
+    for (const [name, provider] of Object.entries(this.providers)) {
+      try {
+        const health = await provider.checkHealth();
+        if (health.available) {
+          console.log(`[PROVIDER] ${name} READY`);
+        } else {
+          console.log(`[PROVIDER] ${name} UNAVAILABLE (${health.reason || 'unreachable'})`);
+        }
+      } catch (e) {
+        console.log(`[PROVIDER] ${name} UNAVAILABLE (${e.message})`);
+      }
+    }
   }
 
   /**
@@ -71,16 +95,10 @@ export class ProviderManager {
   }
 
   /**
-   * Main download orchestrator.
-   * Executes providers sequentially with failover, isolated job directories,
-   * timeouts, and output verification.
-   *
-   * @param {string} rawUrl - Target URL
-   * @param {object} [options={}] - Download options
-   * @returns {Promise<{ success: boolean, platform: string, title: string, filename: string, size: number, mimeType: string, filePath: string }>}
+   * Execute an async job across the sequential provider pipeline
    */
-  async download(rawUrl, options = {}) {
-    const norm = ProviderManager.normalizeUrl(rawUrl);
+  async executeJob(job) {
+    const norm = ProviderManager.normalizeUrl(job.url);
     if (!norm) {
       const err = new Error('Unsupported or invalid media URL');
       err.code = ErrorCodes.UNSUPPORTED_PLATFORM;
@@ -90,9 +108,8 @@ export class ProviderManager {
     const { platform, url } = norm;
     const pipelineNames = platform === 'youtube' ? this.youtubePipeline : this.instagramPipeline;
     const jobCtx = FileManager.createJobContext();
-    const startTime = Date.now();
 
-    console.log(`[DOWNLOAD] job=${jobCtx.jobId} platform=${platform} url=${url} status=started`);
+    console.log(`[DOWNLOAD] job=${job.jobId} platform=${platform} url=${url}`);
 
     let lastError = null;
 
@@ -100,26 +117,31 @@ export class ProviderManager {
       const provider = this.providers[providerName];
       if (!provider) continue;
 
+      job.currentProvider = providerName;
+      job.updatedAt = Date.now();
+
       // Circuit breaker check
       if (provider.isCircuitOpen()) {
-        console.log(`[DOWNLOAD] job=${jobCtx.jobId} provider=${providerName} status=skipped reason=circuit_open`);
+        console.log(`[PROVIDER] ${providerName} SKIPPED (circuit open)`);
+        job.providerHistory.push({ provider: providerName, status: 'skipped', reason: 'circuit_open' });
         continue;
       }
 
       // Health / Availability check
       const health = await provider.checkHealth();
       if (!health.available) {
-        console.log(`[DOWNLOAD] job=${jobCtx.jobId} provider=${providerName} status=skipped reason=unavailable detail="${health.reason || ''}"`);
+        console.log(`[PROVIDER] ${providerName} UNAVAILABLE (${health.reason || 'offline'})`);
+        job.providerHistory.push({ provider: providerName, status: 'unavailable', reason: health.reason });
         continue;
       }
 
-      console.log(`[DOWNLOAD] job=${jobCtx.jobId} provider=${providerName} status=executing`);
+      console.log(`[PROVIDER] ${providerName} START`);
       const providerStartTime = Date.now();
 
       try {
         const downloadOptions = {
-          ...options,
-          audioOnly: options.audioOnly || norm.isMusic || false
+          ...job.options,
+          audioOnly: job.options.audioOnly || norm.isMusic || false
         };
 
         const result = await provider.download({
@@ -134,7 +156,7 @@ export class ProviderManager {
           if (validation.valid) {
             provider.recordSuccess();
             const durationMs = Date.now() - providerStartTime;
-            console.log(`[DOWNLOAD] job=${jobCtx.jobId} provider=${providerName} status=success duration=${durationMs}ms size=${validation.size}`);
+            console.log(`[PROVIDER] ${providerName} SUCCESS (${durationMs}ms, ${validation.size} bytes)`);
 
             const ext = validation.extension || 'mp4';
             const cleanBase = path.basename(result.filePath, path.extname(result.filePath)).replace(/^\d+_/, '');
@@ -144,8 +166,9 @@ export class ProviderManager {
             // Clean up temporary job directory
             jobCtx.cleanup();
 
+            job.providerHistory.push({ provider: providerName, status: 'success', durationMs });
+
             return {
-              success: true,
               platform,
               title: result.title || finalName,
               filename: finalName,
@@ -163,7 +186,9 @@ export class ProviderManager {
         lastError = provErr;
         const durationMs = Date.now() - providerStartTime;
         const classified = classifyError(provErr, platform);
-        console.log(`[DOWNLOAD] job=${jobCtx.jobId} provider=${providerName} status=failed code=${classified.code} duration=${durationMs}ms`);
+        console.log(`[PROVIDER] ${providerName} FAILED code=${classified.code} (${durationMs}ms)`);
+
+        job.providerHistory.push({ provider: providerName, status: 'failed', code: classified.code, durationMs });
 
         // If content is definitively removed / private on platform, do not waste time retrying other engines
         if (classified.code === ErrorCodes.YOUTUBE_UNAVAILABLE || classified.code === ErrorCodes.INSTAGRAM_UNAVAILABLE) {
@@ -172,14 +197,16 @@ export class ProviderManager {
           fatalErr.code = classified.code;
           throw fatalErr;
         }
+
+        job.status = JobStates.PROVIDER_FALLBACK;
+        job.updatedAt = Date.now();
       }
     }
 
     // All providers exhausted
     jobCtx.cleanup();
-    const totalDuration = Date.now() - startTime;
     const finalClassified = classifyError(lastError, platform);
-    console.log(`[DOWNLOAD] job=${jobCtx.jobId} platform=${platform} status=exhausted finalCode=${finalClassified.code} totalDuration=${totalDuration}ms`);
+    console.log(`[DOWNLOAD] job=${job.jobId} platform=${platform} ALL_PROVIDERS_FAILED finalCode=${finalClassified.code}`);
 
     const finalErr = new Error(finalClassified.message);
     finalErr.code = finalClassified.code;
@@ -187,36 +214,67 @@ export class ProviderManager {
   }
 
   /**
+   * Synchronous / Direct wrapper for backward-compatibility or scripts
+   */
+  async download(rawUrl, options = {}) {
+    const job = this.jobQueue.createJob(rawUrl, options);
+    
+    // Poll job completion in memory
+    return new Promise((resolve, reject) => {
+      const checkInterval = setInterval(() => {
+        const current = this.jobQueue.getJob(job.jobId);
+        if (!current) {
+          clearInterval(checkInterval);
+          return reject(new Error('Job not found'));
+        }
+        if (current.status === JobStates.COMPLETED && current.result) {
+          clearInterval(checkInterval);
+          return resolve({
+            success: true,
+            ...current.result
+          });
+        }
+        if (current.status === JobStates.FAILED) {
+          clearInterval(checkInterval);
+          const err = new Error(current.error?.message || 'Download failed');
+          err.code = current.error?.code || 'DOWNLOAD_FAILED';
+          return reject(err);
+        }
+      }, 500);
+    });
+  }
+
+  /**
    * Return structured provider health status for GET /api/downloader/status
    */
   async getStatus() {
-    const providerStatuses = [];
-
-    for (const [name, provider] of Object.entries(this.providers)) {
-      const health = await provider.checkHealth();
-      providerStatuses.push({
-        name,
-        available: health.available,
-        circuitOpen: provider.isCircuitOpen(),
-        totalSuccess: provider.totalSuccess,
-        totalFailures: provider.totalFailures,
-        supportedPlatforms: provider.supportedPlatforms
-      });
-    }
+    const ytPoHealth = await this.providers['ytdlp-po'].checkHealth();
+    const bgutilHealth = await this.providers['bgutil'].checkHealth();
+    const ytDirectHealth = await this.providers['ytdlp-direct'].checkHealth();
+    const cobaltHealth = await this.providers['cobalt'].checkHealth();
+    const igYtHealth = await this.providers['instagram-ytdlp'].checkHealth();
+    const igFbHealth = await this.providers['instagram-fallback'].checkHealth();
 
     return {
       available: true,
-      platforms: {
-        youtube: true,
-        instagram: true
+      youtube: {
+        ytdlpPo: ytPoHealth.available,
+        bgutil: bgutilHealth.available,
+        ytdlpDirect: ytDirectHealth.available,
+        cobalt: cobaltHealth.available
       },
-      providers: providerStatuses
+      instagram: {
+        ytdlp: igYtHealth.available,
+        fallback: igFbHealth.available,
+        cobalt: cobaltHealth.available
+      },
+      activeWorkers: this.jobQueue.activeWorkers,
+      queueLength: this.jobQueue.queue.length
     };
   }
 
   /**
    * Safe structured diagnostic endpoint for POST /api/downloader/diagnose
-   * (Zero raw child process stderr leakage).
    */
   async diagnose(rawUrl) {
     const startTime = Date.now();

@@ -49,7 +49,7 @@ import TelegramModule from './modules/telegram.js';
 import HistoryManager from './modules/history.js';
 import SchedulerModule from './modules/scheduler.js';
 import SessionManager from './modules/session_manager.js';
-import { providerManager, FileManager, ErrorCodes } from './modules/downloader/index.js';
+import { ProviderManager, providerManager, FileManager, ErrorCodes } from './modules/downloader/index.js';
 import AIAudioCaptioner from './modules/ai_audio_captioner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -737,8 +737,80 @@ app.post('/api/downloader/diagnose', async (req, res) => {
   }
 });
 
-// ─── API: Universal Media Downloader (YouTube & Instagram) ───
+// ─── API: Async Media Downloader Job Dispatcher ──────────────
 app.post('/api/download', async (req, res) => {
+  const { url, audioOnly } = req.body;
+  if (!url || !url.trim()) {
+    return res.status(400).json({ success: false, code: 'URL_REQUIRED', error: 'URL is required' });
+  }
+
+  const norm = ProviderManager.normalizeUrl(url);
+  if (!norm) {
+    return res.status(400).json({
+      success: false,
+      code: ErrorCodes.UNSUPPORTED_PLATFORM,
+      error: 'Only publicly accessible YouTube and Instagram URLs are supported'
+    });
+  }
+
+  const job = providerManager.jobQueue.createJob(url, { audioOnly: !!audioOnly });
+  return res.json({
+    success: true,
+    jobId: job.jobId,
+    status: job.status
+  });
+});
+
+// ─── API: Query Download Job Status ──────────────────────────
+app.get(['/api/download/job/:jobId', '/api/download/:jobId'], (req, res) => {
+  const jobId = req.params.jobId;
+  const job = providerManager.jobQueue.getJob(jobId);
+
+  if (!job) {
+    return res.status(404).json({
+      success: false,
+      status: 'failed',
+      code: 'JOB_NOT_FOUND',
+      error: 'Download job not found or expired'
+    });
+  }
+
+  if (job.status === 'COMPLETED' && job.result) {
+    return res.json({
+      success: true,
+      jobId: job.jobId,
+      status: 'success',
+      filename: job.result.filename,
+      downloadUrl: job.result.downloadUrl,
+      title: job.result.title,
+      size: job.result.size,
+      mimeType: job.result.mimeType,
+      platform: job.result.platform,
+      provider: job.result.provider
+    });
+  }
+
+  if (job.status === 'FAILED') {
+    return res.json({
+      success: false,
+      jobId: job.jobId,
+      status: 'failed',
+      code: job.error?.code || 'DOWNLOAD_FAILED',
+      error: job.error?.message || 'Download failed'
+    });
+  }
+
+  return res.json({
+    success: true,
+    jobId: job.jobId,
+    status: 'processing',
+    currentProvider: job.currentProvider,
+    providerHistory: job.providerHistory
+  });
+});
+
+// ─── API: Synchronous Media Downloader (Direct Fallback) ──────
+app.post('/api/download/sync', async (req, res) => {
   const { url, audioOnly } = req.body;
   if (!url || !url.trim()) {
     return res.status(400).json({ success: false, code: 'URL_REQUIRED', error: 'URL is required' });

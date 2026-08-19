@@ -869,6 +869,11 @@ app.post('/api/download', async (req, res) => {
       '--socket-timeout', '30'
     ];
 
+    const proxyUrl = process.env.YTDL_PROXY || process.env.HTTP_PROXY || process.env.HTTPS_PROXY;
+    if (proxyUrl) {
+      args.push('--proxy', proxyUrl);
+    }
+
     // Configure JavaScript Runtime Challenge Solvers for YouTube n-sig / bot-checks
     if (denoAvailable && denoCmd) {
       args.push('--js-runtimes', `deno:${denoCmd}`, '--js-runtimes', 'node');
@@ -1002,12 +1007,14 @@ app.post('/api/download', async (req, res) => {
     let dlResult;
     if (isYouTube) {
       // Deterministic zero-cookie profile strategy:
-      // 1. mweb (lightweight, zero-cookie, high compatibility)
-      // 2. tv_embedded (no-login TV profile)
-      // 3. web_embedded (web iframe player)
-      // 4. android (mobile client)
-      // 5. default (yt-dlp auto-select)
+      // 1. android_vr (YouTube Shorts & VR native client)
+      // 2. mweb (lightweight, zero-cookie, high compatibility)
+      // 3. tv_embedded (no-login TV profile)
+      // 4. web_embedded (web iframe player)
+      // 5. android (mobile client)
+      // 6. default (yt-dlp auto-select)
       const ytProfiles = [
+        'android_vr',
         'mweb',
         'tv_embedded',
         'web_embedded',

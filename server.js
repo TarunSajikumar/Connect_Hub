@@ -49,8 +49,7 @@ import TelegramModule from './modules/telegram.js';
 import HistoryManager from './modules/history.js';
 import SchedulerModule from './modules/scheduler.js';
 import SessionManager from './modules/session_manager.js';
-import InstagramDownloader from './modules/instagram_downloader.js';
-import YouTubeDownloader from './modules/youtube_downloader.js';
+import { providerManager, FileManager, ErrorCodes } from './modules/downloader/index.js';
 import AIAudioCaptioner from './modules/ai_audio_captioner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -706,436 +705,73 @@ app.get('/api/health', (req, res) => {
     environment: process.env.NODE_ENV === 'production' || process.env.RENDER ? 'production' : 'development',
     version: '2.0.0',
     ytDlpAvailable: !!ytDlpAvailable,
-    ytDlpCmd: ytDlpCmd ? path.basename(ytDlpCmd) : null,
-    ytDlpVersion: ytDlpVersion || null,
     ffmpegAvailable: !!ffmpegAvailable,
-    ffmpegCmd: ffmpegCmd ? path.basename(ffmpegCmd) : null,
-    denoAvailable: !!denoAvailable,
     timestamp: new Date().toISOString()
   });
 });
 
 // ─── API: Downloader Status ──────────────────────────────────
-app.get('/api/downloader/status', (req, res) => {
-  res.json({
-    success: true,
-    available: ytDlpAvailable
-  });
+app.get('/api/downloader/status', async (req, res) => {
+  try {
+    const status = await providerManager.getStatus();
+    res.json({
+      success: true,
+      ...status
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
-// ─── API: Downloader Diagnostics ─────────────────────────────
+// ─── API: Downloader Diagnostics (Safe, normalized output) ───
 app.post('/api/downloader/diagnose', async (req, res) => {
-  const testUrl = req.body?.url || 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
-  const profile = req.body?.profile || 'android,tv_embedded,mweb';
-
-  const args = [
-    '--no-playlist',
-    '--force-ipv4',
-    '--geo-bypass',
-    '-s',
-    '--dump-json',
-    '--no-check-certificates',
-    '--socket-timeout', '15'
-  ];
-
-  if (denoAvailable && denoCmd) {
-    args.push('--js-runtimes', `deno:${denoCmd}`, '--js-runtimes', 'node');
-  } else {
-    args.push('--js-runtimes', 'node');
-  }
-
-
-  if (profile && profile !== 'default') {
-    args.push('--extractor-args', `youtube:player_client=${profile}`);
-  }
-
-  args.push(testUrl);
-
   try {
-    const proc = spawn(ytDlpCmd, args);
-    let stdout = '';
-    let stderr = '';
-
-    proc.stdout.on('data', d => { stdout += d.toString(); });
-    proc.stderr.on('data', d => { stderr += d.toString(); });
-
-    const timeout = setTimeout(() => {
-      proc.kill();
-    }, 25000);
-
-    proc.on('close', (exitCode) => {
-      clearTimeout(timeout);
-      let parsed = null;
-      try {
-        parsed = JSON.parse(stdout);
-      } catch (e) {}
-
-      res.json({
-        success: exitCode === 0,
-        exitCode,
-        url: testUrl,
-        profile,
-        title: parsed?.title || null,
-        duration: parsed?.duration || null,
-        formatCount: parsed?.formats?.length || 0,
-        ytDlpVersion,
-        nodeVersion: process.version,
-        platform: process.platform,
-        denoAvailable,
-        ffmpegAvailable,
-        error: exitCode !== 0 ? stderr.trim() : null
-      });
-    });
+    const testUrl = req.body?.url || 'https://www.youtube.com/watch?v=jNQXAC9IVRw';
+    const diag = await providerManager.diagnose(testUrl);
+    res.json(diag);
   } catch (err) {
     res.status(500).json({
       success: false,
+      error: 'Diagnostic run failed'
+    });
+  }
+});
+
+// ─── API: Universal Media Downloader (YouTube & Instagram) ───
+app.post('/api/download', async (req, res) => {
+  const { url, audioOnly } = req.body;
+  if (!url || !url.trim()) {
+    return res.status(400).json({ success: false, code: 'URL_REQUIRED', error: 'URL is required' });
+  }
+
+  try {
+    const result = await providerManager.download(url, { audioOnly: !!audioOnly });
+    return res.json({
+      success: true,
+      platform: result.platform,
+      title: result.title,
+      filename: result.filename,
+      size: result.size,
+      mimeType: result.mimeType,
+      provider: result.provider
+    });
+  } catch (err) {
+    const statusCode = (err.code === ErrorCodes.UNSUPPORTED_PLATFORM || err.code === ErrorCodes.INVALID_URL) ? 400 : 500;
+    return res.status(statusCode).json({
+      success: false,
+      code: err.code || 'DOWNLOAD_FAILED',
       error: err.message
     });
   }
 });
 
-app.post('/api/download', async (req, res) => {
-  if (!ytDlpAvailable) {
-    return res.status(503).json({
-      success: false,
-      code: 'YTDLP_INITIALIZING',
-      error: 'yt-dlp engine is initializing on the server. Please try again in a few seconds.'
-    });
-  }
-
-  const { url } = req.body;
-  if (!url || !url.trim()) {
-    return res.status(400).json({ success: false, code: 'URL_REQUIRED', error: 'URL is required' });
-  }
-
-  // Clean and normalize input URL
-  let cleanUrl = url.trim().replace(/^["']|["']$/g, '');
-  
-  // Normalize YouTube videos, shorts, music, live, embed, and mobile URLs
-  const shortsMatch = cleanUrl.match(/(?:youtube\.com|youtu\.be)\/shorts\/([a-zA-Z0-9_-]+)/i);
-  if (shortsMatch) {
-    cleanUrl = `https://www.youtube.com/watch?v=${shortsMatch[1]}`;
-  } else {
-    const musicMatch = cleanUrl.match(/music\.youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]+)/i);
-    if (musicMatch) {
-      cleanUrl = `https://music.youtube.com/watch?v=${musicMatch[1]}`;
-    } else {
-      const youtuBeMatch = cleanUrl.match(/youtu\.be\/([a-zA-Z0-9_-]+)/i);
-      if (youtuBeMatch && !cleanUrl.includes('/watch')) {
-        cleanUrl = `https://www.youtube.com/watch?v=${youtuBeMatch[1]}`;
-      } else {
-        const liveMatch = cleanUrl.match(/youtube\.com\/live\/([a-zA-Z0-9_-]+)/i);
-        if (liveMatch) {
-          cleanUrl = `https://www.youtube.com/watch?v=${liveMatch[1]}`;
-        } else {
-          const embedMatch = cleanUrl.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/i);
-          if (embedMatch) {
-            cleanUrl = `https://www.youtube.com/watch?v=${embedMatch[1]}`;
-          } else {
-            const watchMatch = cleanUrl.match(/(?:youtube\.com|m\.youtube\.com)\/watch\?.*v=([a-zA-Z0-9_-]+)/i);
-            if (watchMatch) {
-              cleanUrl = `https://www.youtube.com/watch?v=${watchMatch[1]}`;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(cleanUrl);
-  const isInstagram = /instagram\.com/i.test(cleanUrl);
-  if (!isYouTube && !isInstagram) {
-    return res.status(400).json({ success: false, code: 'UNSUPPORTED_PLATFORM', error: 'Only Instagram and YouTube URLs are supported' });
-  }
-
-  const downloadsDir = path.join(__dirname, 'downloads');
-  const timestamp = Date.now();
-  // Using timestamp + ID ensures 100% valid ASCII filename across Windows NTFS and Linux
-  const outputTemplate = path.join(downloadsDir, `${timestamp}_%(id)s.%(ext)s`);
-
-  const executeYtDlp = (clientProfile = 'mweb') => {
-    const args = [
-      '--no-playlist',
-      '--force-ipv4',
-      '--geo-bypass',          // Bypass region restrictions automatically across any region
-      '--merge-output-format', 'mp4',
-      '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestaudio/best[ext=mp4]/best',
-      '-o', outputTemplate,
-      '--restrict-filenames',   // ensures safe ASCII-only filenames on all OS
-      '--no-warnings',
-      '--retries', '2',
-      '--fragment-retries', '2',
-      '--skip-unavailable-fragments',
-      '--no-check-certificates',
-      '--socket-timeout', '30'
-    ];
-
-    const proxyUrl = process.env.YTDL_PROXY || process.env.HTTP_PROXY || process.env.HTTPS_PROXY;
-    if (proxyUrl) {
-      args.push('--proxy', proxyUrl);
-    }
-
-    // Configure JavaScript Runtime Challenge Solvers for YouTube n-sig / bot-checks
-    if (denoAvailable && denoCmd) {
-      args.push('--js-runtimes', `deno:${denoCmd}`, '--js-runtimes', 'node');
-    } else {
-      args.push('--js-runtimes', 'node');
-    }
-
-    if (ffmpegAvailable && ffmpegCmd) {
-      // Pass the directory that contains ffmpeg, not the binary itself
-      const ffmpegDir = path.isAbsolute(ffmpegCmd)
-        ? path.dirname(ffmpegCmd)
-        : (path.dirname(ffmpegCmd) || '.');
-      args.push('--ffmpeg-location', ffmpegDir);
-    }
-
-    if (isYouTube) {
-      const isMusicUrl = /music\.youtube\.com/i.test(cleanUrl);
-      if (isMusicUrl) {
-        args.push('--extractor-args', 'youtubemusic:player_client=web,android');
-      }
-      if (clientProfile && clientProfile !== 'default') {
-        args.push('--extractor-args', `youtube:player_client=${clientProfile}`);
-      }
-    }
-
-    if (isInstagram) {
-      args.push(
-        '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        '--referer', 'https://www.instagram.com/',
-        '--extractor-args', 'instagram:api_example=1'
-      );
-    }
-
-    // Print title and filepath to capture metadata cleanly
-    args.push('--print', 'title', '--print', 'after_move:filepath', cleanUrl);
-
-    return new Promise((resolve, reject) => {
-      const proc = spawn(ytDlpCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-      let stdout = '';
-      let stderr = '';
-
-      proc.stdout.on('data', d => { stdout += d.toString(); });
-      proc.stderr.on('data', d => { stderr += d.toString(); });
-
-      // Per-attempt timeout: 60s is enough to detect bot-check (fails in ~20-40s)
-      // but still allows fast downloads to complete
-      const timeout = setTimeout(() => {
-        proc.kill();
-        reject(new Error('Download timed out'));
-      }, 60 * 1000);
-
-      proc.on('close', (code) => {
-        clearTimeout(timeout);
-        if (code === 0) {
-          const lines = stdout.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-          // --print title fires first, --print after_move:filepath fires after merge
-          const videoTitle = lines.length > 1 ? lines[0] : '';
-
-          let foundPath = null;
-
-          // Primary: path printed by --print after_move:filepath (most reliable when it fires)
-          for (let i = lines.length - 1; i >= 0; i--) {
-            const candidate = lines[i];
-            // Skip the title line and any stream fragment paths (.fNNN.)
-            if (
-              candidate !== videoTitle &&
-              fs.existsSync(candidate) &&
-              !/\.f\d+\./i.test(candidate) &&
-              !candidate.endsWith('.part')
-            ) {
-              foundPath = candidate;
-              break;
-            }
-          }
-
-          // Secondary: scan downloads dir for any file matching our timestamp prefix
-          if (!foundPath) {
-            try {
-              const matchingFiles = fs.readdirSync(downloadsDir)
-                .filter(f =>
-                  f.startsWith(String(timestamp)) &&
-                  !/\.f\d+\./i.test(f) &&
-                  !f.endsWith('.part') &&
-                  !f.endsWith('.ytdl')
-                )
-                .map(f => ({ f, full: path.join(downloadsDir, f), t: fs.statSync(path.join(downloadsDir, f)).mtimeMs }))
-                .sort((a, b) => b.t - a.t);
-              if (matchingFiles.length > 0) {
-                foundPath = matchingFiles[0].full;
-              }
-            } catch (e) {}
-          }
-
-          if (foundPath && fs.existsSync(foundPath)) {
-            const fstat = fs.statSync(foundPath);
-            if (fstat.size === 0) {
-              reject(new Error('Download completed but output file is empty (0 bytes)'));
-            } else {
-              resolve({ filePath: foundPath, videoTitle });
-            }
-          } else {
-            // Log raw stdout/stderr for debugging
-            console.warn(`[DOWNLOAD] File not located. stdout lines: ${JSON.stringify(lines)}`);
-            reject(new Error('Download completed but output file could not be located'));
-          }
-        } else {
-          const rawErr = (stderr || stdout).replace(/\x1b\[[0-9;]*m/g, '').trim();
-          // Log the raw yt-dlp error for diagnostics
-          console.warn(`[DOWNLOAD] yt-dlp exit ${code}: ${rawErr.substring(0, 500)}`);
-          reject(new Error(rawErr || 'Download failed'));
-        }
-      });
-
-      proc.on('error', (err) => {
-        clearTimeout(timeout);
-        reject(new Error('Failed to start yt-dlp: ' + err.message));
-      });
-    });
-  };
-
-  const startTime = Date.now();
-  console.log('\n' + '='.repeat(50));
-  console.log('[DOWNLOAD] Processing media download request:');
-  console.log(`  URL:       ${cleanUrl}`);
-  console.log(`  Platform:  ${isYouTube ? 'youtube' : 'instagram'}`);
-  console.log(`  yt-dlp:    ${ytDlpCmd} (v${ytDlpVersion || 'latest'})`);
-  console.log(`  FFmpeg:    ${ffmpegAvailable ? `Available (${ffmpegCmd})` : 'Not available'}`);
-  console.log('='.repeat(50));
-
-  try {
-    let dlResult;
-    if (isYouTube) {
-      dlResult = await YouTubeDownloader.download({
-        url: cleanUrl,
-        downloadsDir,
-        timestamp,
-        ytDlpCmd,
-        ffmpegCmd,
-        ffmpegAvailable,
-        denoCmd,
-        denoAvailable
-      });
-    } else {
-      dlResult = await executeYtDlp();
-    }
-
-    const { filePath, videoTitle } = dlResult;
-    const stat = fs.statSync(filePath);
-    const filename = path.basename(filePath);
-    const ext = path.extname(filename).toLowerCase();
-    const mimeType = ext === '.mp4' ? 'video/mp4'
-      : ext === '.webm' ? 'video/webm'
-      : ext === '.mkv' ? 'video/x-matroska'
-      : ext === '.mp3' ? 'audio/mpeg'
-      : ext === '.m4a' ? 'audio/mp4'
-      : ext === '.opus' ? 'audio/opus'
-      : ext === '.ogg' ? 'audio/ogg'
-      : ext === '.wav' ? 'audio/wav'
-      : ext === '.flac' ? 'audio/flac'
-      : ext === '.aac' ? 'audio/aac'
-      : 'application/octet-stream';
-
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[DOWNLOAD] Success (${duration}s): ${videoTitle || filename} (${(stat.size / 1024 / 1024).toFixed(2)} MB)\n`);
-
-    // Auto-cleanup after 30 minutes
-    setTimeout(() => {
-      try { fs.unlinkSync(filePath); } catch (e) {}
-    }, 30 * 60 * 1000);
-
-    return res.json({
-      success: true,
-      filename,
-      title: videoTitle || filename,
-      size: stat.size,
-      mimeType,
-      platform: isYouTube ? 'youtube' : 'instagram'
-    });
-
-  } catch (err) {
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    const errMsg = (err.message || 'Download failed').replace(/cookie[s]?/gi, 'token');
-    console.warn(`[DOWNLOAD] Primary engine notice (${duration}s): ${errMsg}`);
-
-    // Automatic InstagramDownloader fallback engine
-    if (isInstagram) {
-      try {
-        console.log(`[DOWNLOAD] Launching InstagramDownloader engine for: ${cleanUrl}`);
-        const result = await InstagramDownloader.downloadReel(cleanUrl, downloadsDir);
-
-        // Auto-cleanup after 30 minutes
-        setTimeout(() => {
-          try { fs.unlinkSync(result.filePath); } catch (e) {}
-        }, 30 * 60 * 1000);
-
-        return res.json({
-          success: true,
-          filename: result.filename,
-          title: result.title || result.filename,
-          size: result.size,
-          mimeType: result.mimeType,
-          platform: 'instagram'
-        });
-      } catch (fallbackErr) {
-        console.error('[DOWNLOAD] Instagram fallback engine notice:', fallbackErr.message);
-        return res.status(500).json({
-          success: false,
-          code: 'INSTAGRAM_DOWNLOAD_FAILED',
-          error: fallbackErr.message || 'Unable to download this Instagram post. Please ensure the post is public.'
-        });
-      }
-    }
-
-    let errorCode = 'DOWNLOAD_FAILED';
-    let userMsg = 'Download failed. Please try again.';
-
-    if (isYouTube) {
-      if (/video unavailable|private video|this video has been removed|is not available|deleted|does not exist/i.test(errMsg)) {
-        errorCode = 'YOUTUBE_UNAVAILABLE';
-        userMsg = 'This YouTube video is unavailable, private, or has been removed.';
-      } else if (/sign in to confirm you'?re not a bot|bot.{0,30}verif|challenge/i.test(errMsg)) {
-        errorCode = 'YOUTUBE_BOT_VERIFICATION';
-        userMsg = 'Unable to download this YouTube video right now due to YouTube verification restrictions. Please try another public video or link.';
-      } else if (/sign in|login/i.test(errMsg)) {
-        errorCode = 'YOUTUBE_BOT_VERIFICATION';
-        userMsg = 'YouTube requires sign-in for this video from the current network. Please try a different public video.';
-      } else if (/timed out/i.test(errMsg)) {
-        errorCode = 'DOWNLOAD_TIMEOUT';
-        userMsg = 'The download timed out. Please try a shorter video or try again.';
-      } else if (/output file could not be located|output file is empty/i.test(errMsg)) {
-        errorCode = 'FILE_NOT_FOUND';
-        userMsg = 'Download appeared to complete but the file could not be saved. Please try again.';
-      } else if (/ffmpeg/i.test(errMsg)) {
-        errorCode = 'FFMPEG_ERROR';
-        userMsg = 'Video processing error on the server. Please try again.';
-      } else if (/network|getaddrinfo|econnreset|socket timeout|connection/i.test(errMsg)) {
-        errorCode = 'NETWORK_ERROR';
-        userMsg = 'Network connectivity issue. Please try again.';
-      } else {
-        errorCode = 'YTDLP_ERROR';
-        userMsg = 'Unable to download this YouTube video right now. Please try another public video.';
-      }
-    }
-
-    res.status(500).json({
-      success: false,
-      code: errorCode,
-      error: userMsg
-    });
-  }
-});
-
-
-// Serve downloaded files (for browser fetch / use-in-upload)
+// ─── Serve Downloaded Files (Path-traversal protected) ───────
 app.get('/api/download/file/:filename', (req, res) => {
-  const filename = path.basename(req.params.filename); // sanitize path traversal
-  const filePath = path.join(__dirname, 'downloads', filename);
-  if (!fs.existsSync(filePath)) {
+  const resolvedPath = FileManager.resolveDownloadFile(req.params.filename);
+  if (!resolvedPath) {
     return res.status(404).json({ success: false, error: 'File not found' });
   }
-  res.sendFile(filePath);
+  res.sendFile(resolvedPath);
 });
 
 // ─── API: AI Audio Caption & Speech-to-Text Synthesizer ────────

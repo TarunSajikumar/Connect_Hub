@@ -1,3 +1,8 @@
+# Render Deployment Configuration
+# Note: Render free web service instances sleep after inactivity.
+# For 24/7 continuous operation without sleep, upgrade to a paid web service plan
+# or configure an outbound residential proxy via YTDL_PROXY.
+
 services:
   - type: web
     name: connect-hub
@@ -5,3 +10,14 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: COBALT_API_URL
+        sync: false
+      - key: POT_PROVIDER_URL
+        sync: false
+      - key: BGUTIL_API_URL
+        sync: false
+      - key: YTDL_PROXY
+        sync: false

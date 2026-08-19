@@ -1301,15 +1301,39 @@ async function startDownload() {
   const isIG = /instagram\.com/i.test(url);
   if (progressText) {
     progressText.textContent = isYT
-      ? '⬇️ Fetching YouTube video at highest quality…'
+      ? '⬇️ Connecting to download engines…'
       : isIG
       ? '⬇️ Fetching Instagram reel/post…'
       : '⬇️ Downloading…';
   }
 
+  const stepTimer1 = setTimeout(() => {
+    if (progressText && dlBtn?.disabled) {
+      progressText.textContent = '🔄 Trying primary download engine…';
+    }
+  }, 10000);
+
+  const stepTimer2 = setTimeout(() => {
+    if (progressText && dlBtn?.disabled) {
+      progressText.textContent = '🔄 Trying fallback download engine…';
+    }
+  }, 22000);
+
   try {
-    const res = await api('POST', '/api/download', { url });
+    const abortController = new AbortController();
+    const clientTimeout = setTimeout(() => abortController.abort(), 55000);
+
+    const response = await fetch('/api/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+      signal: abortController.signal
+    });
+    clearTimeout(clientTimeout);
+    const res = await response.json();
     clearInterval(pctInterval);
+    clearTimeout(stepTimer1);
+    clearTimeout(stepTimer2);
 
     if (res.success) {
       if (progressFill) progressFill.style.width = '100%';
@@ -1323,13 +1347,17 @@ async function startDownload() {
       onDownloadComplete(res);
     } else {
       if (progressEl) progressEl.style.display = 'none';
-      showDlError(res.error || 'Download failed');
+      showDlError(res.error || 'Unable to retrieve this media.');
     }
   } catch (e) {
     clearInterval(pctInterval);
+    clearTimeout(stepTimer1);
+    clearTimeout(stepTimer2);
     if (progressEl) progressEl.style.display = 'none';
-    showDlError(e.message || 'Download failed');
+    showDlError(e.name === 'AbortError' ? 'Download request timed out. Please try again.' : (e.message || 'Download failed.'));
   } finally {
+    clearTimeout(stepTimer1);
+    clearTimeout(stepTimer2);
     if (dlBtn) dlBtn.disabled = false;
     if (btnText) btnText.textContent = 'Download';
   }

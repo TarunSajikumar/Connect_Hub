@@ -9,7 +9,7 @@ describe('Server REST API Integration Tests', () => {
     if (httpServer.listening) {
       const addr = httpServer.address();
       const port = typeof addr === 'object' && addr !== null ? addr.port : 4000;
-      baseUrl = `http://localhost:${port}`;
+      baseUrl = `http://127.0.0.1:${port}`;
     } else {
       // Race listen event with a brief fallback in case server is already running on port 4000
       await Promise.race([
@@ -18,7 +18,7 @@ describe('Server REST API Integration Tests', () => {
       ]);
       const addr = httpServer.address();
       const port = typeof addr === 'object' && addr !== null ? addr.port : 4000;
-      baseUrl = `http://localhost:${port}`;
+      baseUrl = `http://127.0.0.1:${port}`;
     }
   });
 
@@ -113,7 +113,7 @@ describe('Server REST API Integration Tests', () => {
     assert.equal(json.code, 'UNSUPPORTED_PLATFORM');
   });
 
-  test('POST /api/downloader/diagnose should return diagnostic envelope', async () => {
+  test('POST /api/downloader/diagnose should return safe diagnostic envelope', async () => {
     const res = await fetch(`${baseUrl}/api/downloader/diagnose`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -122,8 +122,8 @@ describe('Server REST API Integration Tests', () => {
     assert.equal(res.status, 200);
     const json = await res.json();
     assert.equal(typeof json.success, 'boolean');
-    assert.ok('nodeVersion' in json);
-    assert.ok('platform' in json);
+    assert.ok('durationMs' in json);
+    assert.equal(json.stderr, undefined);
   });
 
   test('POST /api/ai/transcribe-caption should synthesize AI caption', async () => {

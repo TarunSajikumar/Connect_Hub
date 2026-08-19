@@ -845,11 +845,11 @@ app.post('/api/download', async (req, res) => {
       '-o', outputTemplate,
       '--restrict-filenames',   // ensures safe ASCII-only filenames on all OS
       '--no-warnings',
-      '--retries', '1',
-      '--fragment-retries', '1',
+      '--retries', '2',
+      '--fragment-retries', '2',
       '--skip-unavailable-fragments',
       '--no-check-certificates',
-      '--socket-timeout', '15'
+      '--socket-timeout', '30'
     ];
 
     // Configure JavaScript Runtime Challenge Solvers for YouTube n-sig / bot-checks

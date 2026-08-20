@@ -1,5 +1,5 @@
 // ============================================================
-// MEDIA DOWNLOADER — Cookie-Free YouTube & Instagram Engine
+// MEDIA DOWNLOADER — Server Backend (Cookie-Free & Rate-Limit Safe)
 // ============================================================
 
 import express from 'express';
@@ -7,7 +7,6 @@ import cors from 'cors';
 import axios from 'axios';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { spawn } from 'child_process';
 import instagramDl from '@selxyzz/instagram-dl';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,7 +15,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configuration endpoints for cookie-free extraction
+// Cookie-free Invidious & Cobalt public API endpoints
 const INVIDIOUS_INSTANCES = [
   process.env.INVIDIOUS_API_URL,
   'https://inv.nadeko.net',
@@ -31,39 +30,54 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── Helpers: URL Parsing ────────────────────────────────────
+// ─── Helper: Extract YouTube ID ──────────────────────────────
 
-export function extractYouTubeId(url) {
-  if (!url || typeof url !== 'string') return null;
-  const clean = url.trim().replace(/^[<"']+|[>"']+$/g, '');
+export function extractYouTubeId(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  let clean = rawUrl.trim();
+  const mdMatch = clean.match(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/);
+  if (mdMatch) clean = mdMatch[2];
+  clean = clean.replace(/^[<"']+|[>"']+$/g, '').trim();
 
   const patterns = [
-    /(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/|embed\/)|youtu\.be\/|music\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/|youtube\.com\/live\/)([^&\s?#]+)/,
     /^([a-zA-Z0-9_-]{11})$/
   ];
 
   for (const pattern of patterns) {
     const match = clean.match(pattern);
-    if (match && match[1]) {
+    if (match && match[1] && /^[a-zA-Z0-9_-]{11}$/.test(match[1])) {
       return match[1];
     }
   }
   return null;
 }
 
-export function extractInstagramShortcode(url) {
-  if (!url || typeof url !== 'string') return null;
-  const clean = url.trim().replace(/^[<"']+|[>"']+$/g, '');
-  const match = clean.match(/(?:instagram\.com|instagr\.am)\/(?:p|reel|tv|stories)\/([A-Za-z0-9_-]+)/);
-  return match && match[1] ? match[1] : null;
+// ─── Helper: Extract Instagram Shortcode ──────────────────────
+
+export function extractInstagramUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  let clean = rawUrl.trim();
+  const mdMatch = clean.match(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/);
+  if (mdMatch) clean = mdMatch[2];
+  clean = clean.replace(/^[<"']+|[>"']+$/g, '').trim();
+
+  if (/instagram\.com|instagr\.am/i.test(clean)) {
+    const match = clean.match(/\/(p|reel|tv|stories)\/([A-Za-z0-9_-]+)/);
+    if (match) {
+      return `https://www.instagram.com/${match[1]}/${match[2]}/`;
+    }
+    return clean;
+  }
+  return null;
 }
 
-// ─── YouTube Extractor ────────────────────────────────────────
+// ─── YouTube Extractor Function ───────────────────────────────
 
 export async function fetchYouTubeInfo(videoId, rawUrl) {
   let lastError = null;
 
-  // 1. Invidious API
+  // 1. Invidious progressive extraction (fast, multi-quality)
   for (const instance of INVIDIOUS_INSTANCES) {
     try {
       const endpoint = `${instance.replace(/\/+$/, '')}/api/v1/videos/${videoId}`;
@@ -77,14 +91,14 @@ export async function fetchYouTubeInfo(videoId, rawUrl) {
 
       const formats = [];
 
-      // Format streams (Video + Audio combined)
+      // Progressive video streams (Video + Audio)
       if (Array.isArray(data.formatStreams)) {
-        for (const fmt of data.formatStreams) {
+        data.formatStreams.forEach((fmt, idx) => {
           if (fmt.url) {
             formats.push({
-              itag: fmt.itag || 18,
-              quality: fmt.qualityLabel || fmt.resolution || '720p Video',
-              mimeType: fmt.type || 'video/mp4',
+              itag: fmt.itag || (18 + idx),
+              quality: fmt.qualityLabel || fmt.resolution || '720p HD',
+              type: 'video',
               hasVideo: true,
               hasAudio: true,
               container: fmt.container || 'mp4',
@@ -92,17 +106,17 @@ export async function fetchYouTubeInfo(videoId, rawUrl) {
               size: fmt.size || null
             });
           }
-        }
+        });
       }
 
-      // Adaptive streams (Audio only)
+      // Audio only streams
       if (Array.isArray(data.adaptiveFormats)) {
-        for (const fmt of data.adaptiveFormats) {
+        data.adaptiveFormats.forEach((fmt, idx) => {
           if (fmt.type?.includes('audio') && fmt.url) {
             formats.push({
-              itag: fmt.itag || 140,
+              itag: fmt.itag || (140 + idx),
               quality: fmt.audioQuality || `${Math.round((fmt.bitrate || 128000) / 1000)}kbps Audio`,
-              mimeType: fmt.type || 'audio/mp4',
+              type: 'audio',
               hasVideo: false,
               hasAudio: true,
               container: fmt.container || 'mp3',
@@ -110,31 +124,7 @@ export async function fetchYouTubeInfo(videoId, rawUrl) {
               size: fmt.size || null
             });
           }
-        }
-      }
-
-      // Default fallback streams if none parsed
-      if (formats.length === 0) {
-        formats.push(
-          {
-            itag: 18,
-            quality: 'HD Video (MP4)',
-            mimeType: 'video/mp4',
-            hasVideo: true,
-            hasAudio: true,
-            container: 'mp4',
-            url: `https://inv.nadeko.net/latest_version?id=${videoId}&itag=18`
-          },
-          {
-            itag: 140,
-            quality: 'Audio MP3',
-            mimeType: 'audio/mp3',
-            hasVideo: false,
-            hasAudio: true,
-            container: 'mp3',
-            url: `https://inv.nadeko.net/latest_version?id=${videoId}&itag=140`
-          }
-        );
+        });
       }
 
       const thumbnail =
@@ -142,11 +132,30 @@ export async function fetchYouTubeInfo(videoId, rawUrl) {
         `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 
       return {
-        title: data.title,
+        title: data.title || 'YouTube Video',
         thumbnail,
         duration: data.lengthSeconds || 0,
         author: data.author || 'YouTube Channel',
-        formats
+        formats: formats.length > 0 ? formats : [
+          {
+            itag: 18,
+            quality: '720p HD Video',
+            type: 'video',
+            hasVideo: true,
+            hasAudio: true,
+            container: 'mp4',
+            url: `https://inv.nadeko.net/latest_version?id=${videoId}&itag=18`
+          },
+          {
+            itag: 140,
+            quality: '128kbps MP3 Audio',
+            type: 'audio',
+            hasVideo: false,
+            hasAudio: true,
+            container: 'mp3',
+            url: `https://inv.nadeko.net/latest_version?id=${videoId}&itag=140`
+          }
+        ]
       };
     } catch (err) {
       lastError = err;
@@ -172,9 +181,9 @@ export async function fetchYouTubeInfo(videoId, rawUrl) {
         author: 'YouTube',
         formats: [
           {
-            itag: 18,
-            quality: 'Best Quality (MP4)',
-            mimeType: 'video/mp4',
+            itag: 22,
+            quality: 'Best HD Quality (Video + Audio)',
+            type: 'video',
             hasVideo: true,
             hasAudio: true,
             container: 'mp4',
@@ -187,61 +196,35 @@ export async function fetchYouTubeInfo(videoId, rawUrl) {
     lastError = err;
   }
 
-  // 3. Local yt-dlp fallback if binary is installed
-  try {
-    const jsonOutput = await new Promise((resolve, reject) => {
-      const proc = spawn('yt-dlp', ['--dump-json', '--no-warnings', `https://www.youtube.com/watch?v=${videoId}`]);
-      let stdout = '';
-      proc.stdout.on('data', d => { stdout += d; });
-      proc.on('close', code => {
-        if (code === 0 && stdout) resolve(JSON.parse(stdout));
-        else reject(new Error('yt-dlp failed'));
-      });
-      proc.on('error', reject);
-    });
-
-    if (jsonOutput?.title) {
-      return {
-        title: jsonOutput.title,
-        thumbnail: jsonOutput.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-        duration: jsonOutput.duration || 0,
-        author: jsonOutput.uploader || 'YouTube',
-        formats: [
-          {
-            itag: 18,
-            quality: 'Best Available (MP4)',
-            mimeType: 'video/mp4',
-            hasVideo: true,
-            hasAudio: true,
-            container: 'mp4',
-            url: jsonOutput.url || `https://www.youtube.com/watch?v=${videoId}`
-          }
-        ]
-      };
-    }
-  } catch (e) {}
-
-  throw new Error('Failed to fetch YouTube video information without cookies. The video may be private, age-restricted, or removed.');
+  throw new Error('Unable to extract YouTube video. The video may be private, age-restricted, or removed.');
 }
 
-// ─── Instagram Extractor ──────────────────────────────────────
+// ─── Instagram Extractor Function ─────────────────────────────
 
 export async function fetchInstagramInfo(rawUrl) {
-  // 1. Direct Instagram API extraction
+  // 1. Direct Instagram API extraction via @selxyzz/instagram-dl
   try {
     const results = await instagramDl(rawUrl);
     if (Array.isArray(results) && results.length > 0) {
-      return results.map((item, index) => {
+      const mediaList = results.map((item, idx) => {
         const isVideo = item.download_url?.includes('.mp4') || item.type === 'video';
         return {
           type: isVideo ? 'video' : 'image',
+          quality: isVideo ? `HD Video / Reel (Part ${idx + 1})` : `High-Res Photo (${idx + 1})`,
           url: item.download_url || item.url,
           thumbnail: item.thumbnail || item.download_url,
-          title: `Instagram ${isVideo ? 'Reel / Video' : 'Photo'} ${index + 1}`
+          title: `Instagram Media ${idx + 1}`
         };
       });
+
+      return {
+        title: 'Instagram Post / Reel',
+        author: 'Instagram User',
+        thumbnail: mediaList[0].thumbnail || mediaList[0].url,
+        media: mediaList
+      };
     }
-  } catch (err) {}
+  } catch (e) {}
 
   // 2. Cobalt API Fallback
   try {
@@ -259,22 +242,37 @@ export async function fetchInstagramInfo(rawUrl) {
         ? cobaltRes.data.picker.map(p => p.url)
         : [cobaltRes.data.url];
 
-      return urls.map((u, i) => {
-        const isVideo = u.includes('.mp4');
-        return {
-          type: isVideo ? 'video' : 'image',
-          url: u,
-          thumbnail: u,
-          title: cobaltRes.data.filename || `Instagram Media ${i + 1}`
-        };
-      });
-    }
-  } catch (err) {}
+      const mediaList = urls.map((u, i) => ({
+        type: u.includes('.mp4') ? 'video' : 'image',
+        quality: u.includes('.mp4') ? `HD Reel / Video ${i + 1}` : `Photo ${i + 1}`,
+        url: u,
+        thumbnail: u,
+        title: cobaltRes.data.filename || `Instagram Media ${i + 1}`
+      }));
 
-  throw new Error('Failed to extract Instagram media. Please ensure the post is public.');
+      return {
+        title: cobaltRes.data.filename || 'Instagram Media',
+        author: 'Instagram',
+        thumbnail: mediaList[0].url,
+        media: mediaList
+      };
+    }
+  } catch (e) {}
+
+  throw new Error('Unable to extract Instagram media. Please ensure the post or reel is from a public account.');
 }
 
-// ─── REST API Routes ──────────────────────────────────────────
+// ─── API Routes ───────────────────────────────────────────────
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    app: 'Media Downloader',
+    version: '1.0.0',
+    mode: 'cookie-free',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // YouTube fetch info
 app.post('/api/youtube', async (req, res) => {
@@ -288,50 +286,37 @@ app.post('/api/youtube', async (req, res) => {
     const data = await fetchYouTubeInfo(videoId, url);
     res.json({ success: true, data });
   } catch (error) {
-    console.error('[YOUTUBE_ERROR]', error.message);
-    res.status(500).json({ error: error.message || 'Failed to fetch video information' });
+    console.error('YouTube error:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to fetch YouTube media' });
   }
 });
 
 // YouTube direct streaming download
 app.get('/api/youtube/download', async (req, res) => {
   try {
-    const { url, itag, mediaUrl, title } = req.query;
-    const targetUrl = mediaUrl || url;
+    const { url, title, itag } = req.query;
+    if (!url) return res.status(400).json({ error: 'URL is required' });
 
-    if (!targetUrl) {
-      return res.status(400).send('URL is required');
-    }
-
-    const safeTitle = (title || 'youtube-media')
-      .replace(/[^a-zA-Z0-9_\-\s]/g, '')
-      .trim()
-      .slice(0, 80) || 'youtube-media';
-    const isAudio = itag == '140' || targetUrl.includes('audio') || targetUrl.includes('.mp3');
+    const safeTitle = (title || 'youtube-media').replace(/[^a-zA-Z0-9_\-\s]/g, '').trim() || 'video';
+    const isAudio = itag === '140' || url.includes('audio') || url.includes('.mp3');
     const extension = isAudio ? 'mp3' : 'mp4';
 
     const response = await axios({
       method: 'get',
-      url: targetUrl,
+      url,
       responseType: 'stream',
       timeout: 30000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
     });
 
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.${extension}"`);
-    if (response.headers['content-type']) {
-      res.setHeader('Content-Type', response.headers['content-type']);
-    }
-    if (response.headers['content-length']) {
-      res.setHeader('Content-Length', response.headers['content-length']);
-    }
+    res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.${extension}"`);
+    if (response.headers['content-type']) res.header('Content-Type', response.headers['content-type']);
+    if (response.headers['content-length']) res.header('Content-Length', response.headers['content-length']);
 
     response.data.pipe(res);
   } catch (error) {
-    console.error('[YOUTUBE_DOWNLOAD_ERROR]', error.message);
-    res.status(500).send('Download failed');
+    console.error('YouTube download error:', error.message);
+    res.status(500).json({ error: 'Download failed' });
   }
 });
 
@@ -341,17 +326,13 @@ app.post('/api/instagram', async (req, res) => {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: 'URL is required' });
 
-    const shortcode = extractInstagramShortcode(url);
-    if (!shortcode) return res.status(400).json({ error: 'Invalid Instagram URL' });
+    const cleanUrl = extractInstagramUrl(url);
+    if (!cleanUrl) return res.status(400).json({ error: 'Invalid Instagram URL' });
 
-    const mediaData = await fetchInstagramInfo(url);
-    if (!mediaData || mediaData.length === 0) {
-      return res.status(400).json({ error: 'Failed to extract Instagram media' });
-    }
-
-    res.json({ success: true, data: mediaData });
+    const data = await fetchInstagramInfo(cleanUrl);
+    res.json({ success: true, data });
   } catch (error) {
-    console.error('[INSTAGRAM_ERROR]', error.message);
+    console.error('Instagram error:', error.message);
     res.status(500).json({ error: error.message || 'Failed to fetch Instagram media' });
   }
 });
@@ -360,52 +341,74 @@ app.post('/api/instagram', async (req, res) => {
 app.get('/api/instagram/download', async (req, res) => {
   try {
     const { url, title } = req.query;
-    if (!url) return res.status(400).send('URL is required');
+    if (!url) return res.status(400).json({ error: 'URL is required' });
 
-    const safeTitle = (title || 'instagram-media')
-      .replace(/[^a-zA-Z0-9_\-\s]/g, '')
-      .trim()
-      .slice(0, 80) || 'instagram-media';
     const isVideo = url.includes('.mp4');
     const extension = isVideo ? 'mp4' : 'jpg';
+    const safeTitle = (title || 'instagram-media').replace(/[^a-zA-Z0-9_\-\s]/g, '').trim() || 'instagram';
 
     const response = await axios({
       method: 'get',
       url,
       responseType: 'stream',
       timeout: 30000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
     });
 
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.${extension}"`);
-    if (response.headers['content-type']) {
-      res.setHeader('Content-Type', response.headers['content-type']);
-    }
-    if (response.headers['content-length']) {
-      res.setHeader('Content-Length', response.headers['content-length']);
-    }
+    res.header('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.${extension}"`);
+    if (response.headers['content-type']) res.header('Content-Type', response.headers['content-type']);
+    if (response.headers['content-length']) res.header('Content-Length', response.headers['content-length']);
 
     response.data.pipe(res);
   } catch (error) {
-    console.error('[INSTAGRAM_DOWNLOAD_ERROR]', error.message);
-    res.status(500).send('Download failed');
+    console.error('Instagram download error:', error.message);
+    res.status(500).json({ error: 'Download failed' });
   }
 });
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    app: 'Media Downloader',
-    version: '1.0.0',
-    mode: 'cookie-free',
-    timestamp: new Date().toISOString()
-  });
+// Universal fetch endpoint
+app.post('/api/fetch', async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ success: false, error: 'URL is required' });
+
+  if (extractYouTubeId(url)) {
+    return app._router.handle({ ...req, url: '/api/youtube' }, res);
+  }
+  if (extractInstagramUrl(url)) {
+    return app._router.handle({ ...req, url: '/api/instagram' }, res);
+  }
+  return res.status(400).json({ success: false, error: 'Unsupported URL. Please paste a valid YouTube or Instagram link.' });
 });
 
-// Catch-all route to serve index.html
+// Universal download proxy
+app.get('/api/download', async (req, res) => {
+  const { url, filename, ext } = req.query;
+  if (!url) return res.status(400).send('URL query parameter is required');
+
+  try {
+    const isVideo = ext === 'mp4' || url.includes('.mp4');
+    const extension = ext || (isVideo ? 'mp4' : (url.includes('.mp3') ? 'mp3' : 'jpg'));
+    const safeName = (filename || 'download').replace(/[^a-zA-Z0-9_\-\s]/g, '').trim() || 'media';
+
+    const response = await axios({
+      method: 'get',
+      url,
+      responseType: 'stream',
+      timeout: 30000,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+    });
+
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeName)}.${extension}"`);
+    if (response.headers['content-type']) res.setHeader('Content-Type', response.headers['content-type']);
+    if (response.headers['content-length']) res.setHeader('Content-Length', response.headers['content-length']);
+
+    response.data.pipe(res);
+  } catch (err) {
+    res.status(500).send('Download stream failed');
+  }
+});
+
+// Catch-all
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

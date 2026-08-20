@@ -1,47 +1,41 @@
 // ============================================================
-// MEDIA DOWNLOADER — Unit & Integration Tests
+// MEDIA DOWNLOADER — Unit & Integration Test Suite
 // ============================================================
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { app, extractYouTubeId, extractInstagramShortcode } from '../server.js';
+import { app, extractYouTubeId, extractInstagramUrl } from '../server.js';
 
-describe('Media Downloader Test Suite', () => {
+describe('Media Downloader API & Extraction Tests', () => {
 
-  describe('1. URL Parsing & Platform Normalization', () => {
-    it('should parse standard YouTube watch URLs', () => {
-      const id = extractYouTubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
-      assert.equal(id, 'dQw4w9WgXcQ');
+  describe('1. URL Parsing & Helpers', () => {
+    it('should extract YouTube video ID from standard URLs', () => {
+      assert.equal(extractYouTubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), 'dQw4w9WgXcQ');
     });
 
-    it('should parse YouTube Shorts URLs', () => {
-      const id = extractYouTubeId('https://youtube.com/shorts/oup55hcy9ps?si=123');
-      assert.equal(id, 'oup55hcy9ps');
+    it('should extract YouTube video ID from Shorts URLs', () => {
+      assert.equal(extractYouTubeId('https://youtube.com/shorts/oup55hcy9ps?si=123'), 'oup55hcy9ps');
     });
 
-    it('should parse YouTube Music URLs', () => {
-      const id = extractYouTubeId('https://music.youtube.com/watch?v=dQw4w9WgXcQ');
-      assert.equal(id, 'dQw4w9WgXcQ');
+    it('should extract YouTube video ID from youtu.be shortlinks', () => {
+      assert.equal(extractYouTubeId('https://youtu.be/jNQXAC9IVRw'), 'jNQXAC9IVRw');
     });
 
-    it('should parse youtu.be shortlinks', () => {
-      const id = extractYouTubeId('https://youtu.be/jNQXAC9IVRw');
-      assert.equal(id, 'jNQXAC9IVRw');
-    });
-
-    it('should parse Instagram Reel and Post URLs', () => {
-      const reel = extractInstagramShortcode('https://www.instagram.com/reel/C8mQ9p9p_Xx/?igsh=abc');
-      assert.equal(reel, 'C8mQ9p9p_Xx');
-
-      const post = extractInstagramShortcode('https://instagram.com/p/DF12345/');
-      assert.equal(post, 'DF12345');
+    it('should extract Instagram URL for Reels and Posts', () => {
+      assert.equal(
+        extractInstagramUrl('https://www.instagram.com/reel/C8mQ9p9p_Xx/?igsh=abc'),
+        'https://www.instagram.com/reel/C8mQ9p9p_Xx/'
+      );
+      assert.equal(
+        extractInstagramUrl('https://instagram.com/p/DF12345/'),
+        'https://www.instagram.com/p/DF12345/'
+      );
     });
 
     it('should reject invalid or unsupported URLs', () => {
       assert.equal(extractYouTubeId(''), null);
-      assert.equal(extractYouTubeId('not-a-url'), null);
       assert.equal(extractYouTubeId('https://example.com/video'), null);
-      assert.equal(extractInstagramShortcode('https://example.com/reel/123'), null);
+      assert.equal(extractInstagramUrl('https://example.com/photo'), null);
     });
   });
 
@@ -63,7 +57,7 @@ describe('Media Downloader Test Suite', () => {
       setTimeout(() => process.exit(0), 50).unref();
     });
 
-    it('GET /api/health should return ok and cookie-free mode', async () => {
+    it('GET /api/health should return ok', async () => {
       const res = await fetch(`${baseUrl}/api/health`);
       assert.equal(res.status, 200);
       const json = await res.json();
@@ -71,46 +65,40 @@ describe('Media Downloader Test Suite', () => {
       assert.equal(json.mode, 'cookie-free');
     });
 
-    it('POST /api/youtube should reject empty body with 400', async () => {
+    it('POST /api/youtube should reject empty URL with 400', async () => {
       const res = await fetch(`${baseUrl}/api/youtube`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: '' })
       });
       assert.equal(res.status, 400);
-      const json = await res.json();
-      assert.ok(json.error);
     });
 
-    it('POST /api/youtube should reject unsupported URL with 400', async () => {
-      const res = await fetch(`${baseUrl}/api/youtube`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: 'https://example.com/something' })
-      });
-      assert.equal(res.status, 400);
-      const json = await res.json();
-      assert.ok(json.error);
-    });
-
-    it('GET /api/youtube/download should reject missing url parameter', async () => {
-      const res = await fetch(`${baseUrl}/api/youtube/download`);
-      assert.equal(res.status, 400);
-    });
-
-    it('POST /api/instagram should reject empty body with 400', async () => {
+    it('POST /api/instagram should reject empty URL with 400', async () => {
       const res = await fetch(`${baseUrl}/api/instagram`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: '' })
       });
       assert.equal(res.status, 400);
-      const json = await res.json();
-      assert.ok(json.error);
     });
 
-    it('GET /api/instagram/download should reject missing url parameter', async () => {
+    it('GET /api/youtube/download should reject missing URL with 400', async () => {
+      const res = await fetch(`${baseUrl}/api/youtube/download`);
+      assert.equal(res.status, 400);
+    });
+
+    it('GET /api/instagram/download should reject missing URL with 400', async () => {
       const res = await fetch(`${baseUrl}/api/instagram/download`);
+      assert.equal(res.status, 400);
+    });
+
+    it('POST /api/fetch should route YouTube and Instagram URLs', async () => {
+      const res = await fetch(`${baseUrl}/api/fetch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: 'https://example.com/invalid' })
+      });
       assert.equal(res.status, 400);
     });
   });

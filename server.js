@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configuration
+// Configuration endpoints for cookie-free extraction
 const INVIDIOUS_INSTANCES = [
   process.env.INVIDIOUS_API_URL,
   'https://inv.nadeko.net',
@@ -31,81 +31,39 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── URL Normalization & Validation ──────────────────────────
+// ─── Helpers: URL Parsing ────────────────────────────────────
 
-export function parseMediaUrl(rawUrl) {
-  if (!rawUrl || typeof rawUrl !== 'string') return null;
-  let clean = rawUrl.trim();
+export function extractYouTubeId(url) {
+  if (!url || typeof url !== 'string') return null;
+  const clean = url.trim().replace(/^[<"']+|[>"']+$/g, '');
 
-  // Strip markdown or angle brackets
-  const mdMatch = clean.match(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/);
-  if (mdMatch) clean = mdMatch[2];
-  clean = clean.replace(/^[<"']+|[>"']+$/g, '').trim();
+  const patterns = [
+    /(?:youtube\.com\/(?:watch\?v=|shorts\/|live\/|embed\/)|youtu\.be\/|music\.youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/
+  ];
 
-  try {
-    const parsed = new URL(clean);
-    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
-
-    // YouTube patterns
-    if (
-      host === 'youtube.com' ||
-      host === 'm.youtube.com' ||
-      host === 'music.youtube.com' ||
-      host === 'youtu.be'
-    ) {
-      let videoId = null;
-      let isShorts = false;
-      let isMusic = host === 'music.youtube.com';
-
-      if (host === 'youtu.be') {
-        videoId = parsed.pathname.slice(1).split('/')[0].split('?')[0];
-      } else if (parsed.pathname.startsWith('/shorts/')) {
-        videoId = parsed.pathname.split('/shorts/')[1].split('/')[0].split('?')[0];
-        isShorts = true;
-      } else if (parsed.pathname.startsWith('/live/')) {
-        videoId = parsed.pathname.split('/live/')[1].split('/')[0].split('?')[0];
-      } else if (parsed.pathname.startsWith('/embed/')) {
-        videoId = parsed.pathname.split('/embed/')[1].split('/')[0].split('?')[0];
-      } else if (parsed.searchParams.has('v')) {
-        videoId = parsed.searchParams.get('v');
-      }
-
-      if (videoId && /^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
-        return {
-          platform: 'youtube',
-          videoId,
-          isShorts,
-          isMusic,
-          url: `https://www.youtube.com/watch?v=${videoId}`
-        };
-      }
+  for (const pattern of patterns) {
+    const match = clean.match(pattern);
+    if (match && match[1]) {
+      return match[1];
     }
-
-    // Instagram patterns
-    if (host === 'instagram.com' || host === 'instagr.am') {
-      const match = parsed.pathname.match(/\/(p|reel|tv|stories)\/([A-Za-z0-9_-]+)/);
-      if (match) {
-        return {
-          platform: 'instagram',
-          shortcode: match[2],
-          type: match[1],
-          url: `https://www.instagram.com/${match[1]}/${match[2]}/`
-        };
-      }
-    }
-  } catch (err) {
-    return null;
   }
-
   return null;
+}
+
+export function extractInstagramShortcode(url) {
+  if (!url || typeof url !== 'string') return null;
+  const clean = url.trim().replace(/^[<"']+|[>"']+$/g, '');
+  const match = clean.match(/(?:instagram\.com|instagr\.am)\/(?:p|reel|tv|stories)\/([A-Za-z0-9_-]+)/);
+  return match && match[1] ? match[1] : null;
 }
 
 // ─── YouTube Extractor ────────────────────────────────────────
 
-export async function extractYouTube(videoId, rawUrl) {
+export async function fetchYouTubeInfo(videoId, rawUrl) {
   let lastError = null;
 
-  // 1. Try Invidious Instances
+  // 1. Invidious API
   for (const instance of INVIDIOUS_INSTANCES) {
     try {
       const endpoint = `${instance.replace(/\/+$/, '')}/api/v1/videos/${videoId}`;
@@ -119,101 +77,108 @@ export async function extractYouTube(videoId, rawUrl) {
 
       const formats = [];
 
-      // Video + Audio progressive streams
+      // Format streams (Video + Audio combined)
       if (Array.isArray(data.formatStreams)) {
         for (const fmt of data.formatStreams) {
           if (fmt.url) {
             formats.push({
-              quality: fmt.qualityLabel || fmt.resolution || 'HD Video',
-              type: 'video',
+              itag: fmt.itag || 18,
+              quality: fmt.qualityLabel || fmt.resolution || '720p Video',
+              mimeType: fmt.type || 'video/mp4',
+              hasVideo: true,
+              hasAudio: true,
               container: fmt.container || 'mp4',
               url: fmt.url,
-              size: fmt.size || null,
-              hasAudio: true
+              size: fmt.size || null
             });
           }
         }
       }
 
-      // Audio only streams
+      // Adaptive streams (Audio only)
       if (Array.isArray(data.adaptiveFormats)) {
         for (const fmt of data.adaptiveFormats) {
           if (fmt.type?.includes('audio') && fmt.url) {
             formats.push({
+              itag: fmt.itag || 140,
               quality: fmt.audioQuality || `${Math.round((fmt.bitrate || 128000) / 1000)}kbps Audio`,
-              type: 'audio',
+              mimeType: fmt.type || 'audio/mp4',
+              hasVideo: false,
+              hasAudio: true,
               container: fmt.container || 'mp3',
               url: fmt.url,
-              size: fmt.size || null,
-              hasAudio: true
+              size: fmt.size || null
             });
           }
         }
       }
 
-      // Pick best thumbnail
+      // Default fallback streams if none parsed
+      if (formats.length === 0) {
+        formats.push(
+          {
+            itag: 18,
+            quality: 'HD Video (MP4)',
+            mimeType: 'video/mp4',
+            hasVideo: true,
+            hasAudio: true,
+            container: 'mp4',
+            url: `https://inv.nadeko.net/latest_version?id=${videoId}&itag=18`
+          },
+          {
+            itag: 140,
+            quality: 'Audio MP3',
+            mimeType: 'audio/mp3',
+            hasVideo: false,
+            hasAudio: true,
+            container: 'mp3',
+            url: `https://inv.nadeko.net/latest_version?id=${videoId}&itag=140`
+          }
+        );
+      }
+
       const thumbnail =
         data.videoThumbnails?.find(t => t.quality === 'maxresdefault' || t.quality === 'high')?.url ||
         `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 
       return {
-        platform: 'youtube',
-        videoId,
-        title: data.title || 'YouTube Video',
-        author: data.author || 'YouTube Channel',
-        duration: data.lengthSeconds || 0,
+        title: data.title,
         thumbnail,
-        formats: formats.length > 0 ? formats : [
-          {
-            quality: 'HD Video',
-            type: 'video',
-            container: 'mp4',
-            url: `https://inv.nadeko.net/latest_version?id=${videoId}&itag=18`,
-            hasAudio: true
-          },
-          {
-            quality: 'Audio MP3',
-            type: 'audio',
-            container: 'mp3',
-            url: `https://inv.nadeko.net/latest_version?id=${videoId}&itag=140`,
-            hasAudio: true
-          }
-        ]
+        duration: data.lengthSeconds || 0,
+        author: data.author || 'YouTube Channel',
+        formats
       };
     } catch (err) {
       lastError = err;
     }
   }
 
-  // 2. Try Cobalt Engine
+  // 2. Cobalt API Fallback
   try {
     const cobaltRes = await axios.post(
       `${COBALT_URL.replace(/\/+$/, '')}/`,
-      { url: rawUrl },
+      { url: rawUrl || `https://www.youtube.com/watch?v=${videoId}` },
       {
         timeout: 8000,
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json'
-        }
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' }
       }
     );
 
     if (cobaltRes.data?.url) {
       return {
-        platform: 'youtube',
-        videoId,
         title: cobaltRes.data.filename?.replace(/\.[^/.]+$/, '') || 'YouTube Media',
-        author: 'YouTube',
-        duration: 0,
         thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+        duration: 0,
+        author: 'YouTube',
         formats: [
           {
-            quality: 'Best Quality',
-            type: 'video',
+            itag: 18,
+            quality: 'Best Quality (MP4)',
+            mimeType: 'video/mp4',
+            hasVideo: true,
+            hasAudio: true,
             container: 'mp4',
-            url: cobaltRes.data.url,
-            hasAudio: true
+            url: cobaltRes.data.url
           }
         ]
       };
@@ -222,10 +187,10 @@ export async function extractYouTube(videoId, rawUrl) {
     lastError = err;
   }
 
-  // 3. Fallback: yt-dlp dump-json if installed on host
+  // 3. Local yt-dlp fallback if binary is installed
   try {
     const jsonOutput = await new Promise((resolve, reject) => {
-      const proc = spawn('yt-dlp', ['--dump-json', '--no-warnings', rawUrl]);
+      const proc = spawn('yt-dlp', ['--dump-json', '--no-warnings', `https://www.youtube.com/watch?v=${videoId}`]);
       let stdout = '';
       proc.stdout.on('data', d => { stdout += d; });
       proc.on('close', code => {
@@ -237,57 +202,48 @@ export async function extractYouTube(videoId, rawUrl) {
 
     if (jsonOutput?.title) {
       return {
-        platform: 'youtube',
-        videoId,
         title: jsonOutput.title,
-        author: jsonOutput.uploader || 'YouTube',
-        duration: jsonOutput.duration || 0,
         thumbnail: jsonOutput.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+        duration: jsonOutput.duration || 0,
+        author: jsonOutput.uploader || 'YouTube',
         formats: [
           {
-            quality: 'Best Available',
-            type: 'video',
+            itag: 18,
+            quality: 'Best Available (MP4)',
+            mimeType: 'video/mp4',
+            hasVideo: true,
+            hasAudio: true,
             container: 'mp4',
-            url: jsonOutput.url || rawUrl,
-            hasAudio: true
+            url: jsonOutput.url || `https://www.youtube.com/watch?v=${videoId}`
           }
         ]
       };
     }
   } catch (e) {}
 
-  throw new Error('Unable to fetch YouTube video details without cookies. The video may be private, age-restricted, or removed.');
+  throw new Error('Failed to fetch YouTube video information without cookies. The video may be private, age-restricted, or removed.');
 }
 
 // ─── Instagram Extractor ──────────────────────────────────────
 
-export async function extractInstagram(rawUrl) {
+export async function fetchInstagramInfo(rawUrl) {
   // 1. Direct Instagram API extraction
   try {
     const results = await instagramDl(rawUrl);
     if (Array.isArray(results) && results.length > 0) {
-      const items = results.map((item, idx) => {
+      return results.map((item, index) => {
         const isVideo = item.download_url?.includes('.mp4') || item.type === 'video';
         return {
-          quality: isVideo ? 'HD Video / Reel' : 'High Quality Photo',
           type: isVideo ? 'video' : 'image',
-          container: isVideo ? 'mp4' : 'jpg',
           url: item.download_url || item.url,
-          thumbnail: item.thumbnail || item.download_url
+          thumbnail: item.thumbnail || item.download_url,
+          title: `Instagram ${isVideo ? 'Reel / Video' : 'Photo'} ${index + 1}`
         };
       });
-
-      return {
-        platform: 'instagram',
-        title: 'Instagram Post / Reel',
-        author: 'Instagram User',
-        thumbnail: items[0].thumbnail || items[0].url,
-        formats: items
-      };
     }
   } catch (err) {}
 
-  // 2. Cobalt fallback for Instagram
+  // 2. Cobalt API Fallback
   try {
     const cobaltRes = await axios.post(
       `${COBALT_URL.replace(/\/+$/, '')}/`,
@@ -303,87 +259,115 @@ export async function extractInstagram(rawUrl) {
         ? cobaltRes.data.picker.map(p => p.url)
         : [cobaltRes.data.url];
 
-      const formats = urls.map((u, i) => ({
-        quality: u.includes('.mp4') ? `Video Part ${i + 1}` : `Media Item ${i + 1}`,
-        type: u.includes('.mp4') ? 'video' : 'image',
-        container: u.includes('.mp4') ? 'mp4' : 'jpg',
-        url: u
-      }));
-
-      return {
-        platform: 'instagram',
-        title: cobaltRes.data.filename || 'Instagram Media',
-        author: 'Instagram',
-        thumbnail: formats[0].url,
-        formats
-      };
+      return urls.map((u, i) => {
+        const isVideo = u.includes('.mp4');
+        return {
+          type: isVideo ? 'video' : 'image',
+          url: u,
+          thumbnail: u,
+          title: cobaltRes.data.filename || `Instagram Media ${i + 1}`
+        };
+      });
     }
   } catch (err) {}
 
-  throw new Error('Unable to extract Instagram media. Please ensure the post or account is public.');
+  throw new Error('Failed to extract Instagram media. Please ensure the post is public.');
 }
 
-// ─── API Routes ───────────────────────────────────────────────
+// ─── REST API Routes ──────────────────────────────────────────
 
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    app: 'Media Downloader',
-    version: '1.0.0',
-    mode: 'cookie-free',
-    timestamp: new Date().toISOString()
-  });
-});
-
-app.post('/api/fetch', async (req, res) => {
+// YouTube fetch info
+app.post('/api/youtube', async (req, res) => {
   try {
     const { url } = req.body;
-    if (!url) {
-      return res.status(400).json({ success: false, error: 'Please enter a valid URL' });
-    }
+    if (!url) return res.status(400).json({ error: 'URL is required' });
 
-    const parsed = parseMediaUrl(url);
-    if (!parsed) {
-      return res.status(400).json({
-        success: false,
-        error: 'Unsupported URL. Please paste a valid YouTube or Instagram link.'
-      });
-    }
+    const videoId = extractYouTubeId(url);
+    if (!videoId) return res.status(400).json({ error: 'Invalid YouTube URL' });
 
-    let mediaData = null;
-    if (parsed.platform === 'youtube') {
-      mediaData = await extractYouTube(parsed.videoId, parsed.url);
-    } else if (parsed.platform === 'instagram') {
-      mediaData = await extractInstagram(parsed.url);
-    }
-
-    res.json({
-      success: true,
-      data: mediaData
-    });
-  } catch (err) {
-    console.error('[FETCH_ERROR]', err.message);
-    res.status(500).json({
-      success: false,
-      error: err.message || 'Failed to fetch media information'
-    });
+    const data = await fetchYouTubeInfo(videoId, url);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('[YOUTUBE_ERROR]', error.message);
+    res.status(500).json({ error: error.message || 'Failed to fetch video information' });
   }
 });
 
-// Proxy download stream endpoint for clean file downloads
-app.get('/api/download', async (req, res) => {
+// YouTube direct streaming download
+app.get('/api/youtube/download', async (req, res) => {
   try {
-    const { url, filename, ext } = req.query;
-    if (!url) {
-      return res.status(400).send('URL query parameter is required');
+    const { url, itag, mediaUrl, title } = req.query;
+    const targetUrl = mediaUrl || url;
+
+    if (!targetUrl) {
+      return res.status(400).send('URL is required');
     }
 
-    const safeTitle = (filename || 'media')
+    const safeTitle = (title || 'youtube-media')
       .replace(/[^a-zA-Z0-9_\-\s]/g, '')
       .trim()
-      .slice(0, 80) || 'media';
-    const extension = ext || (url.includes('.mp4') ? 'mp4' : 'jpg');
-    const fullFilename = `${safeTitle}.${extension}`;
+      .slice(0, 80) || 'youtube-media';
+    const isAudio = itag == '140' || targetUrl.includes('audio') || targetUrl.includes('.mp3');
+    const extension = isAudio ? 'mp3' : 'mp4';
+
+    const response = await axios({
+      method: 'get',
+      url: targetUrl,
+      responseType: 'stream',
+      timeout: 30000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.${extension}"`);
+    if (response.headers['content-type']) {
+      res.setHeader('Content-Type', response.headers['content-type']);
+    }
+    if (response.headers['content-length']) {
+      res.setHeader('Content-Length', response.headers['content-length']);
+    }
+
+    response.data.pipe(res);
+  } catch (error) {
+    console.error('[YOUTUBE_DOWNLOAD_ERROR]', error.message);
+    res.status(500).send('Download failed');
+  }
+});
+
+// Instagram fetch info
+app.post('/api/instagram', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ error: 'URL is required' });
+
+    const shortcode = extractInstagramShortcode(url);
+    if (!shortcode) return res.status(400).json({ error: 'Invalid Instagram URL' });
+
+    const mediaData = await fetchInstagramInfo(url);
+    if (!mediaData || mediaData.length === 0) {
+      return res.status(400).json({ error: 'Failed to extract Instagram media' });
+    }
+
+    res.json({ success: true, data: mediaData });
+  } catch (error) {
+    console.error('[INSTAGRAM_ERROR]', error.message);
+    res.status(500).json({ error: error.message || 'Failed to fetch Instagram media' });
+  }
+});
+
+// Instagram direct streaming download
+app.get('/api/instagram/download', async (req, res) => {
+  try {
+    const { url, title } = req.query;
+    if (!url) return res.status(400).send('URL is required');
+
+    const safeTitle = (title || 'instagram-media')
+      .replace(/[^a-zA-Z0-9_\-\s]/g, '')
+      .trim()
+      .slice(0, 80) || 'instagram-media';
+    const isVideo = url.includes('.mp4');
+    const extension = isVideo ? 'mp4' : 'jpg';
 
     const response = await axios({
       method: 'get',
@@ -395,7 +379,7 @@ app.get('/api/download', async (req, res) => {
       }
     });
 
-    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fullFilename)}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(safeTitle)}.${extension}"`);
     if (response.headers['content-type']) {
       res.setHeader('Content-Type', response.headers['content-type']);
     }
@@ -404,10 +388,21 @@ app.get('/api/download', async (req, res) => {
     }
 
     response.data.pipe(res);
-  } catch (err) {
-    console.error('[DOWNLOAD_STREAM_ERROR]', err.message);
-    res.status(500).send('Failed to stream download file');
+  } catch (error) {
+    console.error('[INSTAGRAM_DOWNLOAD_ERROR]', error.message);
+    res.status(500).send('Download failed');
   }
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    app: 'Media Downloader',
+    version: '1.0.0',
+    mode: 'cookie-free',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Catch-all route to serve index.html

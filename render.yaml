@@ -1,10 +1,18 @@
 # ============================================================
-# MEDIA DOWNLOADER — Render Deployment Blueprint
+# SOCIAL HUB — Render Deployment Blueprint
+# ============================================================
+#
+# Production Architecture Note:
+# On Render, if you host private Cobalt or BGUTIL instances,
+# deploy them as separate Render Web Services and point the
+# environment variables (COBALT_API_URL, BGUTIL_API_URL) to their
+# internal Render service URLs (e.g. http://cobalt-service:9000).
+# For public proxies (Invidious), provide the external HTTPS endpoint.
 # ============================================================
 
 services:
   - type: web
-    name: media-downloader
+    name: connect-hub
     env: node
     plan: free
     buildCommand: npm install
@@ -12,9 +20,15 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        value: 3000
       - key: INVIDIOUS_API_URL
         value: https://inv.nadeko.net
       - key: COBALT_API_URL
+        sync: false
+      - key: BGUTIL_API_URL
+        sync: false
+      - key: YTDL_PROXY
+        sync: false
+      - key: WHATSAPP_ENGINE
+        value: openwa
+      - key: OPENWA_API_URL
         sync: false

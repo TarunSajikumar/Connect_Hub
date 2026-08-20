@@ -1,12 +1,12 @@
 /* ============================================================
-   MEDIA DOWNLOADER — Modern Glassmorphic Dark Design System
+   MEDIA DOWNLOADER — Glassmorphic Dark Design System
    ============================================================ */
 
 :root {
-  --bg-main: #090d16;
-  --card-bg: rgba(17, 24, 39, 0.85);
+  --bg-main: #0a0e1a;
+  --card-bg: rgba(17, 24, 39, 0.88);
   --card-border: rgba(255, 255, 255, 0.08);
-  --input-bg: #0b101b;
+  --input-bg: #0c111d;
   --input-border: #1e293b;
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
@@ -112,7 +112,7 @@ body {
   font-weight: 400;
 }
 
-/* ─── Platform Filter Badges ──────────────────────────────── */
+/* ─── Platform Badges ─────────────────────────────────────── */
 .platform-badges {
   display: flex;
   align-items: center;
@@ -123,14 +123,16 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  padding: 7px 15px;
   border-radius: 9999px;
+  font-family: inherit;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   transition: all 0.2s ease;
   user-select: none;
-  cursor: default;
+  cursor: pointer;
+  border: none;
 }
 
 .badge-icon {
@@ -141,9 +143,11 @@ body {
   background: var(--yt-bg);
   border: 1px solid var(--yt-border);
   color: var(--yt-color);
+  opacity: 0.7;
 }
 
 .badge-yt.active {
+  opacity: 1;
   box-shadow: 0 0 16px var(--yt-glow);
   border-color: #ef4444;
   background: rgba(239, 68, 68, 0.25);
@@ -153,9 +157,11 @@ body {
   background: var(--ig-bg);
   border: 1px solid var(--ig-border);
   color: var(--ig-color);
+  opacity: 0.7;
 }
 
 .badge-ig.active {
+  opacity: 1;
   box-shadow: 0 0 16px var(--ig-glow);
   border-color: #c084fc;
   background: rgba(192, 132, 252, 0.25);

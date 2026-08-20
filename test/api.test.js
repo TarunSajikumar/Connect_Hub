@@ -22,10 +22,15 @@ describe('Server REST API Integration Tests', () => {
     }
   });
 
-  after(() => {
+  after(async () => {
     try {
-      if (wss && typeof wss.close === 'function') wss.close();
-      if (httpServer && typeof httpServer.close === 'function') httpServer.close();
+      if (wss && typeof wss.close === 'function') {
+        await new Promise((resolve) => wss.close(resolve));
+      }
+      if (httpServer) {
+        if (typeof httpServer.closeAllConnections === 'function') httpServer.closeAllConnections();
+        await new Promise((resolve) => httpServer.close(resolve));
+      }
     } catch (e) {}
   });
 

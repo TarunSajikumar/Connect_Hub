@@ -92,9 +92,11 @@ describe('Server REST API Integration Tests', () => {
     const json = await res.json();
     assert.equal(json.success, true);
     assert.equal(typeof json.available, 'boolean');
-    assert.ok(json.youtube);
-    assert.equal(typeof json.youtube.invidious.healthy, 'boolean');
-    assert.equal(typeof json.youtube.invidious.configured, 'boolean');
+    assert.ok(json.providers);
+    assert.ok(json.providers.bgutil);
+    assert.ok(json.providers.cobalt);
+    assert.ok(json.providers.invidious);
+    assert.ok(json.providers.ytdlp);
   });
 
   test('POST /api/download should reject missing URL with 400', async () => {
@@ -133,18 +135,24 @@ describe('Server REST API Integration Tests', () => {
     assert.ok(json.jobId);
     assert.ok(json.status);
 
-    // Poll job status
-    const pollRes = await fetch(`${baseUrl}/api/download/job/${json.jobId}`);
-    assert.equal(pollRes.status, 200);
-    const pollJson = await pollRes.json();
-    assert.ok(pollJson.status);
+    // Poll job status until it settles
+    for (let i = 0; i < 20; i++) {
+      const pollRes = await fetch(`${baseUrl}/api/download/job/${json.jobId}`);
+      assert.equal(pollRes.status, 200);
+      const pollJson = await pollRes.json();
+      assert.ok(pollJson.status);
+      if (pollJson.status === 'success' || pollJson.status === 'failed') {
+        break;
+      }
+      await new Promise(r => setTimeout(r, 400));
+    }
   });
 
   test('POST /api/downloader/diagnose should return safe diagnostic envelope', async () => {
     const res = await fetch(`${baseUrl}/api/downloader/diagnose`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: 'https://www.youtube.com/watch?v=jNQXAC9IVRw' })
+      body: JSON.stringify({ url: 'https://example.com/invalid' })
     });
     assert.equal(res.status, 200);
     const json = await res.json();

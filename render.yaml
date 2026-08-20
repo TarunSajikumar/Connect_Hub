@@ -1,7 +1,14 @@
-# Render Deployment Configuration
-# Note: Render free web service instances sleep after inactivity.
-# For 24/7 continuous operation without sleep, upgrade to a paid web service plan
-# or configure an outbound residential proxy via YTDL_PROXY.
+# ============================================================
+# SOCIAL HUB — Render Deployment Blueprint
+# ============================================================
+#
+# Production Architecture Note:
+# On Render, if you host private Cobalt or BGUTIL instances,
+# deploy them as separate Render Web Services and point the
+# environment variables (COBALT_API_URL, BGUTIL_API_URL) to their
+# internal Render service URLs (e.g. http://cobalt-service:9000).
+# For public proxies (Invidious), provide the external HTTPS endpoint.
+# ============================================================
 
 services:
   - type: web
@@ -13,11 +20,15 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: INVIDIOUS_API_URL
+        value: https://inv.nadeko.net
       - key: COBALT_API_URL
-        sync: false
-      - key: POT_PROVIDER_URL
         sync: false
       - key: BGUTIL_API_URL
         sync: false
       - key: YTDL_PROXY
+        sync: false
+      - key: WHATSAPP_ENGINE
+        value: openwa
+      - key: OPENWA_API_URL
         sync: false

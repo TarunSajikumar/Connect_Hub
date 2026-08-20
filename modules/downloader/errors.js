@@ -16,7 +16,8 @@ export const ErrorCodes = {
   MEDIA_FILE_INVALID: 'MEDIA_FILE_INVALID',
   MEDIA_FILE_NOT_FOUND: 'MEDIA_FILE_NOT_FOUND',
   DOWNLOAD_TIMEOUT: 'DOWNLOAD_TIMEOUT',
-  DOWNLOAD_FAILED: 'DOWNLOAD_FAILED'
+  DOWNLOAD_FAILED: 'DOWNLOAD_FAILED',
+  ALL_DOWNLOAD_PROVIDERS_FAILED: 'ALL_DOWNLOAD_PROVIDERS_FAILED'
 };
 
 const SafeUserMessages = {
@@ -32,7 +33,8 @@ const SafeUserMessages = {
   [ErrorCodes.MEDIA_FILE_INVALID]: 'The retrieved media file was invalid or corrupted. Please try again.',
   [ErrorCodes.MEDIA_FILE_NOT_FOUND]: 'The media file could not be saved to storage. Please try again.',
   [ErrorCodes.DOWNLOAD_TIMEOUT]: 'The download request took too long and timed out. Please try again.',
-  [ErrorCodes.DOWNLOAD_FAILED]: 'Unable to retrieve this public media from the available download engines.'
+  [ErrorCodes.DOWNLOAD_FAILED]: 'Unable to retrieve this public media from the available download engines.',
+  [ErrorCodes.ALL_DOWNLOAD_PROVIDERS_FAILED]: 'The media could not be retrieved from the available download providers.'
 };
 
 /**

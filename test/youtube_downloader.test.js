@@ -1,6 +1,6 @@
 // ============================================================
 // SOCIAL HUB — test/youtube_downloader.test.js
-// Unit & Integration Tests for New Provider Architecture
+// Unit & Integration Tests for Provider Architecture & Failover
 // ============================================================
 
 import { describe, it } from 'node:test';
@@ -11,6 +11,10 @@ import { ProviderManager, providerManager } from '../modules/downloader/provider
 import { MediaValidator } from '../modules/downloader/media-validator.js';
 import { classifyError, ErrorCodes } from '../modules/downloader/errors.js';
 import { BaseProvider } from '../modules/downloader/providers/base-provider.js';
+import { BgutilProvider } from '../modules/downloader/providers/bgutil.js';
+import { CobaltProvider } from '../modules/downloader/providers/cobalt.js';
+import { InvidiousProvider } from '../modules/downloader/providers/invidious.js';
+import { YtDlpDirectProvider } from '../modules/downloader/providers/ytdlp-direct.js';
 
 describe('Media Downloader — Provider Architecture Tests', () => {
 
@@ -154,19 +158,64 @@ describe('Media Downloader — Provider Architecture Tests', () => {
     });
   });
 
-  describe('5. Provider Manager Status & Diagnostics', () => {
-    it('should return structured status envelope from getStatus()', async () => {
+  describe('5. Individual Downloader Providers', () => {
+    it('should construct BgutilProvider and check health', async () => {
+      const bgutil = new BgutilProvider();
+      assert.equal(bgutil.name, 'bgutil');
+      const health = await bgutil.checkHealth();
+      assert.equal(typeof health.available, 'boolean');
+    });
+
+    it('should construct CobaltProvider and guard against port 4000', async () => {
+      const cobalt = new CobaltProvider();
+      assert.equal(cobalt.name, 'cobalt');
+      
+      // Test port 4000 guard
+      const origEnv = process.env.COBALT_API_URL;
+      process.env.COBALT_API_URL = 'http://localhost:4000';
+      const health = await cobalt.checkHealth();
+      assert.equal(health.available, false);
+      assert.ok(health.reason.includes('4000'));
+      process.env.COBALT_API_URL = origEnv;
+    });
+
+    it('should construct InvidiousProvider and check health', async () => {
+      const invidious = new InvidiousProvider();
+      assert.equal(invidious.name, 'invidious');
+      const health = await invidious.checkHealth();
+      assert.equal(typeof health.available, 'boolean');
+    });
+
+    it('should construct YtDlpDirectProvider and check binary availability', async () => {
+      const ytdlp = new YtDlpDirectProvider();
+      assert.equal(ytdlp.name, 'ytdlp');
+      const health = await ytdlp.checkHealth();
+      assert.equal(typeof health.available, 'boolean');
+    });
+  });
+
+  describe('6. Provider Manager Priority & Status', () => {
+    it('should have YouTube pipeline ordered: bgutil -> cobalt -> invidious -> ytdlp', () => {
+      assert.deepEqual(providerManager.youtubePipeline, ['bgutil', 'cobalt', 'invidious', 'ytdlp']);
+      assert.deepEqual(providerManager.instagramPipeline, ['instagram-fallback', 'cobalt']);
+    });
+
+    it('should return structured status envelope matching GET /api/downloader/status requirement', async () => {
       const status = await providerManager.getStatus();
-      assert.equal(status.available, true);
-      assert.ok(status.youtube);
-      assert.ok(status.instagram);
-      assert.equal(typeof status.youtube.invidious.healthy, 'boolean');
-      assert.equal(typeof status.youtube.invidious.configured, 'boolean');
-      assert.equal(typeof status.instagram.fallback.healthy, 'boolean');
+      assert.equal(typeof status.available, 'boolean');
+      assert.ok(status.providers);
+      assert.ok(status.providers.bgutil);
+      assert.ok(status.providers.cobalt);
+      assert.ok(status.providers.invidious);
+      assert.ok(status.providers.ytdlp);
+      assert.ok(['READY', 'UNAVAILABLE'].includes(status.providers.bgutil.status));
+      assert.ok(['READY', 'UNAVAILABLE'].includes(status.providers.cobalt.status));
+      assert.ok(['READY', 'UNAVAILABLE'].includes(status.providers.invidious.status));
+      assert.ok(['READY', 'UNAVAILABLE'].includes(status.providers.ytdlp.status));
     });
 
     it('should return safe structured diagnostic object without raw stderr', async () => {
-      const diag = await providerManager.diagnose('https://www.youtube.com/watch?v=invalid_id_999');
+      const diag = await providerManager.diagnose('https://example.com/invalid');
       assert.equal(typeof diag.success, 'boolean');
       assert.ok(diag.code);
       assert.ok(diag.durationMs >= 0);

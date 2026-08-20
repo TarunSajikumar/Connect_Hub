@@ -1,6 +1,6 @@
 // ============================================================
 // SOCIAL HUB — modules/downloader/providers/cobalt.js
-// Provider 4: Cobalt API Provider
+// Provider: Cobalt Downloader API Provider
 // ============================================================
 
 import path from 'path';
@@ -22,13 +22,22 @@ export class CobaltProvider extends BaseProvider {
   getEndpoint() {
     const raw = process.env.COBALT_API_URL;
     if (!raw) return null;
-    return raw.replace(/\/+$/, '');
+    return raw.trim().replace(/\/+$/, '');
   }
 
   async checkHealth() {
     const endpoint = this.getEndpoint();
     if (!endpoint) {
-      return { available: false, reason: 'No COBALT_API_URL configured in environment' };
+      return { available: false, reason: 'COBALT_API_URL is not configured' };
+    }
+
+    try {
+      const parsed = new URL(endpoint);
+      if (parsed.port === '4000' || (parsed.hostname === 'localhost' && parsed.port === '4000') || (parsed.hostname === '127.0.0.1' && parsed.port === '4000')) {
+        return { available: false, reason: 'COBALT_API_URL points to port 4000 (Social Hub server itself)' };
+      }
+    } catch {
+      return { available: false, reason: 'COBALT_API_URL is an invalid URL' };
     }
 
     try {
@@ -42,7 +51,7 @@ export class CobaltProvider extends BaseProvider {
       }
       return { available: false, reason: `Cobalt endpoint returned HTTP ${res.status}` };
     } catch (e) {
-      return { available: false, reason: `Cobalt endpoint unreachable: ${e.message}` };
+      return { available: false, reason: `Cobalt endpoint unreachable (${e.message})` };
     }
   }
 
@@ -95,11 +104,12 @@ export class CobaltProvider extends BaseProvider {
   }
 
   async download({ url, jobDir, timestamp, options = {}, signal }) {
-    const endpoint = this.getEndpoint();
-    if (!endpoint) {
-      throw new Error('COBALT_UNAVAILABLE: No COBALT_API_URL configured');
+    const health = await this.checkHealth();
+    if (!health.available) {
+      throw new Error(`COBALT_UNAVAILABLE: ${health.reason}`);
     }
 
+    const endpoint = this.getEndpoint();
     const postEndpoint = endpoint.endsWith('/api/json') ? endpoint : `${endpoint}/`;
     const isAudioOnly = options.audioOnly || /music\.youtube\.com/i.test(url);
 

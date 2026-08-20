@@ -1,5 +1,6 @@
 // ============================================================
-// Invidious Provider — anonymous public YouTube media proxy
+// SOCIAL HUB — modules/downloader/providers/invidious.js
+// Provider: Invidious Public Media Proxy Provider
 // ============================================================
 
 import fs from 'fs';
@@ -11,22 +12,49 @@ import { MediaValidator } from '../media-validator.js';
 
 export class InvidiousProvider extends BaseProvider {
   constructor() {
-    super({ name: 'invidious', supportedPlatforms: ['youtube'], timeoutMs: 35000 });
+    super({
+      name: 'invidious',
+      supportedPlatforms: ['youtube'],
+      timeoutMs: 35000
+    });
   }
 
   getEndpoint() {
-    const endpoint = process.env.INVIDIOUS_API_URL;
-    return endpoint ? endpoint.replace(/\/+$/, '') : null;
+    const raw = process.env.INVIDIOUS_API_URL;
+    if (!raw) return null;
+    return raw.trim().replace(/\/+$/, '');
   }
 
   async checkHealth() {
-    if (!this.getEndpoint()) {
+    const endpoint = this.getEndpoint();
+    if (!endpoint) {
       return { available: false, reason: 'INVIDIOUS_API_URL is not configured' };
     }
-    return { available: true };
+
+    try {
+      const res = await fetch(`${endpoint}/api/v1/stats`, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(3000)
+      });
+      if (res.ok) {
+        return { available: true };
+      }
+      // Fallback check root endpoint if /api/v1/stats is blocked
+      const rootRes = await fetch(endpoint, {
+        method: 'GET',
+        signal: AbortSignal.timeout(2000)
+      });
+      if (rootRes.ok) {
+        return { available: true };
+      }
+      return { available: false, reason: `Invidious endpoint returned HTTP ${res.status}` };
+    } catch (e) {
+      return { available: false, reason: `Invidious endpoint unreachable (${e.message})` };
+    }
   }
 
-  static downloadStream(streamUrl, destination, timeoutMs) {
+  static downloadStream(streamUrl, destination, timeoutMs = 35000) {
     return new Promise((resolve, reject) => {
       let stream;
       try {
@@ -39,7 +67,6 @@ export class InvidiousProvider extends BaseProvider {
       const client = stream.protocol === 'https:' ? https : http;
       const request = client.get(stream, {
         headers: {
-          // Deliberately no Cookie header. This provider must remain anonymous.
           'Accept': '*/*',
           'User-Agent': 'SocialHub/2.0'
         }
@@ -73,10 +100,15 @@ export class InvidiousProvider extends BaseProvider {
   }
 
   async download({ jobDir, timestamp, options = {} }) {
+    const health = await this.checkHealth();
+    if (!health.available) {
+      throw new Error(`INVIDIOUS_UNAVAILABLE: ${health.reason}`);
+    }
+
     const endpoint = this.getEndpoint();
     const videoId = options.videoId;
     if (!endpoint || !videoId) {
-      throw new Error('INVIDIOUS_UNAVAILABLE: Anonymous YouTube provider is not configured');
+      throw new Error('INVIDIOUS_UNAVAILABLE: Anonymous YouTube provider is not configured or missing video ID');
     }
 
     const response = await fetch(`${endpoint}/api/v1/videos/${encodeURIComponent(videoId)}`, {

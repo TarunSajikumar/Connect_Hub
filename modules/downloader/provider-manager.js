@@ -4,8 +4,11 @@
 // ============================================================
 
 import path from 'path';
-import { InvidiousProvider } from './providers/invidious.js';
+import { execSync } from 'child_process';
+import { BgutilProvider } from './providers/bgutil.js';
 import { CobaltProvider } from './providers/cobalt.js';
+import { InvidiousProvider } from './providers/invidious.js';
+import { YtDlpDirectProvider } from './providers/ytdlp-direct.js';
 import { InstagramFallbackProvider } from './providers/instagram-fallback.js';
 import { FileManager } from './file-manager.js';
 import { MediaValidator } from './media-validator.js';
@@ -15,12 +18,19 @@ import { JobQueue, JobStates } from './job-queue.js';
 export class ProviderManager {
   constructor() {
     this.providers = {
+      bgutil: new BgutilProvider(),
+      cobalt: new CobaltProvider(),
       invidious: new InvidiousProvider(),
-      'cobalt': new CobaltProvider(),
+      ytdlp: new YtDlpDirectProvider(),
       'instagram-fallback': new InstagramFallbackProvider()
     };
 
-    this.youtubePipeline = ['invidious', 'cobalt'];
+    // Priority Order:
+    // 1. yt-dlp + BGUTIL / PO Token Provider
+    // 2. Cobalt Downloader API
+    // 3. Invidious Media Proxy
+    // 4. yt-dlp direct
+    this.youtubePipeline = ['bgutil', 'cobalt', 'invidious', 'ytdlp'];
     this.instagramPipeline = ['instagram-fallback', 'cobalt'];
 
     // Purge orphaned files on startup
@@ -29,16 +39,64 @@ export class ProviderManager {
     // Initialize Job Queue
     this.jobQueue = new JobQueue(this);
 
-    // Run startup health check
+    // Run startup health checks and diagnostics
     this.runStartupHealthChecks();
   }
 
-  async runStartupHealthChecks() {
-    const invidious = await this.providers.invidious.checkHealth();
-    const cobalt = await this.providers['cobalt'].checkHealth();
+  static checkFfmpegAvailable() {
+    try {
+      execSync('ffmpeg -version', { stdio: 'ignore', timeout: 2000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
-    console.log(`[PROVIDER] Invidious ${invidious.available ? 'READY' : 'UNAVAILABLE' + (invidious.reason ? ' (' + invidious.reason + ')' : '')}`);
-    console.log(`[PROVIDER] Cobalt ${cobalt.available ? 'READY' : 'UNAVAILABLE' + (cobalt.reason ? ' (' + cobalt.reason + ')' : '')}`);
+  async runStartupHealthChecks() {
+    const ytdlpHealth = await this.providers.ytdlp.checkHealth();
+    const bgutilHealth = await this.providers.bgutil.checkHealth();
+    const cobaltHealth = await this.providers.cobalt.checkHealth();
+    const invidiousHealth = await this.providers.invidious.checkHealth();
+    const ffmpegReady = ProviderManager.checkFfmpegAvailable();
+
+    const formatHostOnly = (rawUrl) => {
+      if (!rawUrl) return '';
+      try {
+        const u = new URL(rawUrl);
+        return `${u.protocol}//${u.host}`;
+      } catch {
+        return rawUrl.split('?')[0];
+      }
+    };
+
+    const bgEndpoint = formatHostOnly(this.providers.bgutil.getEndpoint());
+    const cobaltEndpoint = formatHostOnly(this.providers.cobalt.getEndpoint());
+    const invidiousEndpoint = formatHostOnly(this.providers.invidious.getEndpoint());
+
+    console.log('\n==================================================');
+    console.log('  DOWNLOADER PROVIDER STATUS');
+    console.log('==================================================');
+    console.log(`  [PROVIDER] yt-dlp direct:   ${ytdlpHealth.available ? 'READY' : 'UNAVAILABLE' + (ytdlpHealth.reason ? ' (' + ytdlpHealth.reason + ')' : '')}`);
+    console.log(`  [PROVIDER] yt-dlp + BGUTIL: ${bgHealthStatus(bgutilHealth, bgEndpoint)}`);
+    console.log(`  [PROVIDER] Cobalt:          ${cobaltHealthStatus(cobaltHealth, cobaltEndpoint)}`);
+    console.log(`  [PROVIDER] Invidious:       ${invidiousHealthStatus(invidiousHealth, invidiousEndpoint)}`);
+    console.log(`  [PROVIDER] FFmpeg:          ${ffmpegReady ? 'READY' : 'UNAVAILABLE (optional for stream merging)'}`);
+    console.log('==================================================\n');
+
+    function bgHealthStatus(h, ep) {
+      if (h.available) return `READY (${ep})`;
+      return `UNAVAILABLE (${ep ? ep + ' — ' : ''}${h.reason || 'unreachable'})`;
+    }
+
+    function cobaltHealthStatus(h, ep) {
+      if (h.available) return `READY (${ep})`;
+      return `UNAVAILABLE (${ep ? ep + ' — ' : ''}${h.reason || 'unreachable'})`;
+    }
+
+    function invidiousHealthStatus(h, ep) {
+      if (h.available) return `READY (${ep})`;
+      return `UNAVAILABLE (${ep ? ep + ' — ' : ''}${h.reason || 'unreachable'})`;
+    }
   }
 
   /**
@@ -95,8 +153,7 @@ export class ProviderManager {
   }
 
   /**
-   * Accept a normal URL as well as the Markdown link format copied from chats.
-   * For example, `[short](https://youtube.com/shorts/...)` becomes the URL.
+   * Accept a normal URL as well as Markdown link syntax from chat
    */
   static extractUrl(rawUrl) {
     const value = rawUrl.trim().replace(/&amp;/gi, '&');
@@ -125,7 +182,7 @@ export class ProviderManager {
     console.log(`[DOWNLOAD] job=${job.jobId} platform=${platform} url=${url}`);
 
     let lastError = null;
-    let hasAvailableProvider = false;
+    let hasAttemptedProvider = false;
 
     for (const providerName of pipelineNames) {
       const provider = this.providers[providerName];
@@ -141,7 +198,7 @@ export class ProviderManager {
         continue;
       }
 
-      // Health / Availability check
+      // Health / Availability check (Fast-skip unavailable providers)
       const health = await provider.checkHealth();
       if (!health.available) {
         console.log(`[PROVIDER] ${providerName} UNAVAILABLE (${health.reason || 'offline'})`);
@@ -149,7 +206,7 @@ export class ProviderManager {
         continue;
       }
 
-      hasAvailableProvider = true;
+      hasAttemptedProvider = true;
 
       console.log(`[PROVIDER] ${providerName} START`);
       const providerStartTime = Date.now();
@@ -221,22 +278,23 @@ export class ProviderManager {
       }
     }
 
-    // All providers exhausted
+    // All providers in pipeline exhausted
     jobCtx.cleanup();
-    if (!hasAvailableProvider) {
-      const finalErr = new Error(
-        platform === 'youtube'
-          ? 'No anonymous YouTube provider is configured. Add INVIDIOUS_API_URL to the server environment.'
-          : 'No public media provider is currently available.'
-      );
-      finalErr.code = ErrorCodes.PROVIDER_UNAVAILABLE;
+    console.log(`[DOWNLOAD] job=${job.jobId} platform=${platform} ALL_PROVIDERS_FAILED`);
+
+    if (!hasAttemptedProvider) {
+      const finalErr = new Error('The media could not be retrieved from the available download providers.');
+      finalErr.code = ErrorCodes.ALL_DOWNLOAD_PROVIDERS_FAILED;
       throw finalErr;
     }
-    const finalClassified = classifyError(lastError, platform);
-    console.log(`[DOWNLOAD] job=${job.jobId} platform=${platform} ALL_PROVIDERS_FAILED finalCode=${finalClassified.code}`);
 
-    const finalErr = new Error(finalClassified.message);
-    finalErr.code = finalClassified.code;
+    const finalClassified = classifyError(lastError, platform);
+    const finalErr = new Error(
+      finalClassified.code === ErrorCodes.YOUTUBE_PROVIDER_FAILED || finalClassified.code === ErrorCodes.INSTAGRAM_PROVIDER_FAILED
+        ? 'The media could not be retrieved from the available download providers.'
+        : finalClassified.message
+    );
+    finalErr.code = ErrorCodes.ALL_DOWNLOAD_PROVIDERS_FAILED;
     throw finalErr;
   }
 
@@ -264,10 +322,11 @@ export class ProviderManager {
         if (current.status === JobStates.FAILED) {
           clearInterval(checkInterval);
           const err = new Error(current.error?.message || 'Download failed');
-          err.code = current.error?.code || 'DOWNLOAD_FAILED';
+          err.code = current.error?.code || ErrorCodes.ALL_DOWNLOAD_PROVIDERS_FAILED;
           return reject(err);
         }
       }, 500);
+      if (checkInterval && typeof checkInterval.unref === 'function') checkInterval.unref();
     });
   }
 
@@ -275,22 +334,78 @@ export class ProviderManager {
    * Return structured provider health status for GET /api/downloader/status
    */
   async getStatus() {
-    const invidiousHealth = await this.providers.invidious.checkHealth();
-    const cobaltHealth = await this.providers['cobalt'].checkHealth();
-    const igFbHealth = await this.providers['instagram-fallback'].checkHealth();
+    const [bgutilHealth, cobaltHealth, invidiousHealth, ytdlpHealth, igFbHealth] = await Promise.all([
+      this.providers.bgutil.checkHealth(),
+      this.providers.cobalt.checkHealth(),
+      this.providers.invidious.checkHealth(),
+      this.providers.ytdlp.checkHealth(),
+      this.providers['instagram-fallback'].checkHealth()
+    ]);
+
+    const formatHostOnly = (rawUrl) => {
+      if (!rawUrl) return null;
+      try {
+        const u = new URL(rawUrl);
+        return `${u.protocol}//${u.host}`;
+      } catch {
+        return rawUrl.split('?')[0];
+      }
+    };
+
+    const isAnyAvailable = bgutilHealth.available || cobaltHealth.available || invidiousHealth.available || ytdlpHealth.available || igFbHealth.available;
 
     return {
-      available: true,
+      success: true,
+      available: isAnyAvailable,
+      providers: {
+        bgutil: {
+          configured: Boolean(this.providers.bgutil.getEndpoint()),
+          healthy: bgutilHealth.available,
+          status: bgutilHealth.available ? 'READY' : 'UNAVAILABLE',
+          endpoint: formatHostOnly(this.providers.bgutil.getEndpoint()),
+          reason: bgutilHealth.reason || null
+        },
+        cobalt: {
+          configured: Boolean(this.providers.cobalt.getEndpoint()),
+          healthy: cobaltHealth.available,
+          status: cobaltHealth.available ? 'READY' : 'UNAVAILABLE',
+          endpoint: formatHostOnly(this.providers.cobalt.getEndpoint()),
+          reason: cobaltHealth.reason || null
+        },
+        invidious: {
+          configured: Boolean(this.providers.invidious.getEndpoint()),
+          healthy: invidiousHealth.available,
+          status: invidiousHealth.available ? 'READY' : 'UNAVAILABLE',
+          endpoint: formatHostOnly(this.providers.invidious.getEndpoint()),
+          reason: invidiousHealth.reason || null
+        },
+        ytdlp: {
+          configured: ytdlpHealth.available,
+          healthy: ytdlpHealth.available,
+          status: ytdlpHealth.available ? 'READY' : 'UNAVAILABLE',
+          reason: ytdlpHealth.reason || null
+        }
+      },
       youtube: {
+        bgutil: {
+          configured: Boolean(this.providers.bgutil.getEndpoint()),
+          healthy: bgutilHealth.available,
+          reason: bgutilHealth.reason || null
+        },
+        cobalt: {
+          configured: Boolean(this.providers.cobalt.getEndpoint()),
+          healthy: cobaltHealth.available,
+          reason: cobaltHealth.reason || null
+        },
         invidious: {
           configured: Boolean(this.providers.invidious.getEndpoint()),
           healthy: invidiousHealth.available,
           reason: invidiousHealth.reason || null
         },
-        cobalt: {
-          configured: Boolean(this.providers['cobalt'].getEndpoint()),
-          healthy: cobaltHealth.available,
-          reason: cobaltHealth.reason || null
+        ytdlp: {
+          configured: ytdlpHealth.available,
+          healthy: ytdlpHealth.available,
+          reason: ytdlpHealth.reason || null
         }
       },
       instagram: {
@@ -299,7 +414,7 @@ export class ProviderManager {
           healthy: igFbHealth.available
         },
         cobalt: {
-          configured: Boolean(this.providers['cobalt'].getEndpoint()),
+          configured: Boolean(this.providers.cobalt.getEndpoint()),
           healthy: cobaltHealth.available
         }
       },

@@ -54,9 +54,12 @@ export class JobQueue {
     this.queue.push(jobId);
 
     // Schedule auto-purge from memory after 30 minutes
-    setTimeout(() => {
+    const purgeTimer = setTimeout(() => {
       this.jobs.delete(jobId);
     }, 30 * 60 * 1000);
+    // Retain jobs in a running server, without keeping a one-off CLI/test
+    // process alive solely for this deferred cleanup.
+    if (purgeTimer.unref) purgeTimer.unref();
 
     // Trigger worker
     this.processNext();

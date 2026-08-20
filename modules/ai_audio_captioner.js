@@ -5,7 +5,6 @@
 
 import fs from 'fs';
 import path from 'path';
-import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -18,15 +17,11 @@ const __dirname = path.dirname(__filename);
  */
 export class AIAudioCaptioner {
   /**
-   * Extract subtitles or transcription from a video/audio file or YouTube/Instagram URL
+   * Extract basic metadata from a video/audio file already stored by this app.
    */
-  static async extractAudioMetadata(filePathOrUrl, ytDlpCmd = 'yt-dlp') {
-    const isUrl = typeof filePathOrUrl === 'string' && /^https?:\/\//i.test(filePathOrUrl);
-    
-    if (isUrl) {
-      return this.extractFromUrl(filePathOrUrl, ytDlpCmd);
-    } else if (filePathOrUrl && fs.existsSync(filePathOrUrl)) {
-      return this.extractFromFile(filePathOrUrl, ytDlpCmd);
+  static async extractAudioMetadata(filePath) {
+    if (filePath && fs.existsSync(filePath)) {
+      return this.extractFromFile(filePath);
     }
 
     return {
@@ -36,99 +31,6 @@ export class AIAudioCaptioner {
       detectedLanguage: 'en',
       isMusic: false
     };
-  }
-
-  /**
-   * Extract metadata & auto-captions from URL using yt-dlp
-   */
-  static async extractFromUrl(url, ytDlpCmd = 'yt-dlp') {
-    return new Promise((resolve) => {
-      const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(url);
-      const args = [
-        '--no-playlist',
-        '--force-ipv4',
-        '--geo-bypass',
-        '--dump-json',
-        '--skip-download',
-        '--no-warnings',
-        '--js-runtimes', 'node',
-        '--socket-timeout', '20'
-      ];
-
-      if (isYouTube) {
-        args.push('--extractor-args', 'youtube:player_client=mweb,tv_embedded,web_embedded');
-      }
-
-      args.push(url);
-
-      const proc = spawn(ytDlpCmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-      let stdout = '';
-      let stderr = '';
-
-
-      proc.stdout.on('data', d => { stdout += d.toString(); });
-      proc.stderr.on('data', d => { stderr += d.toString(); });
-
-      proc.on('close', (code) => {
-        if (code === 0 && stdout.trim()) {
-          try {
-            const data = JSON.parse(stdout);
-            const title = data.title || '';
-            const description = data.description || '';
-            const tags = Array.isArray(data.tags) ? data.tags : [];
-            const categories = Array.isArray(data.categories) ? data.categories : [];
-            const track = data.track || data.alt_title || '';
-            const artist = data.artist || data.creator || data.channel || '';
-
-            // Detect if content is musical / lyrics
-            const isMusic = /music|song|lyric|audio|sound|track|ormakal|thammil|cover|sing/i.test(`${title} ${description} ${categories.join(' ')} ${tags.join(' ')}`);
-
-            // Extract subtitle fragments if available
-            let transcript = '';
-            if (data.subtitles || data.automatic_captions) {
-              const subs = data.subtitles || data.automatic_captions;
-              for (const lang of Object.keys(subs)) {
-                if (subs[lang] && subs[lang].length > 0) {
-                  transcript += `[Lang: ${lang}] `;
-                  break;
-                }
-              }
-            }
-
-            resolve({
-              title,
-              description,
-              transcript: transcript || description.slice(0, 300),
-              artist,
-              track,
-              tags,
-              detectedLanguage: isMusic ? 'ml/en' : 'en',
-              isMusic
-            });
-            return;
-          } catch (e) {}
-        }
-
-        // Fallback title parse
-        resolve({
-          title: 'Video Audio',
-          description: '',
-          transcript: '',
-          detectedLanguage: 'en',
-          isMusic: false
-        });
-      });
-
-      proc.on('error', () => {
-        resolve({
-          title: 'Video Audio',
-          description: '',
-          transcript: '',
-          detectedLanguage: 'en',
-          isMusic: false
-        });
-      });
-    });
   }
 
   /**

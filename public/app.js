@@ -1233,7 +1233,7 @@ async function checkDownloaderStatus() {
     const res = await api('GET', '/api/downloader/status');
     state.downloader.available = res.available;
     if (!res.available) {
-      const notice = document.getElementById('ytdlp-missing-notice');
+      const notice = document.getElementById('download-engine-notice');
       if (notice) notice.style.display = 'flex';
       const btn = document.getElementById('dl-btn');
       if (btn) btn.disabled = true;
@@ -1253,7 +1253,7 @@ async function pasteClipboardToInput() {
     }
     const text = await navigator.clipboard.readText();
     if (text && text.trim()) {
-      input.value = text.trim();
+      input.value = extractMediaUrl(text);
       input.focus();
       toast('success', '📋 Link pasted from clipboard!');
     } else {
@@ -1266,10 +1266,21 @@ async function pasteClipboardToInput() {
   }
 }
 
+// Chats often copy links as Markdown: [label](https://example.com/video).
+// The API also normalizes this, but cleaning it here keeps the visible input
+// valid and makes keyboard paste behave exactly like the Paste button.
+function extractMediaUrl(value) {
+  const text = String(value || '').trim().replace(/&amp;/gi, '&');
+  const markdown = text.match(/^\s*\[[^\]]*\]\(\s*(https?:\/\/[^\s)]+)\s*\)\s*$/i);
+  const url = markdown?.[1] || text.match(/https?:\/\/[^\s<>"']+/i)?.[0] || text;
+  return url.replace(/[.,;:!?]+$/, '');
+}
+
 async function startDownload() {
   const input = document.getElementById('dl-url-input');
-  const url = input?.value.trim();
+  const url = extractMediaUrl(input?.value);
   if (!url) return toast('error', 'Paste a YouTube or Instagram URL first');
+  if (input) input.value = url;
 
   // Reset previous result/error
   hide('dl-result');
@@ -1390,7 +1401,6 @@ function onDownloadComplete(data) {
   state.downloader.currentFilename = data.filename;
   state.downloader.currentMimeType = data.mimeType;
   window.lastDownloadedFilePath = data.filename;
-  window.lastDownloadedVideoUrl = document.getElementById('dl-url-input')?.value || null;
 
   const resultEl = document.getElementById('dl-result');
   const iconEl = document.getElementById('dl-result-icon');
@@ -1960,6 +1970,3 @@ async function toggleRememberMe(checked) {
     }
   } catch (e) { /* ignore */ }
 }
-
-
-

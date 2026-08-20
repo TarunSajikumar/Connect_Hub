@@ -36,7 +36,7 @@ describe('Server REST API Integration Tests', () => {
     assert.equal(json.status, 'ok');
     assert.ok(json.environment);
     assert.equal(json.version, '2.0.0');
-    assert.equal(typeof json.ytDlpAvailable, 'boolean');
+    assert.equal(json.mediaPipeline, 'anonymous-provider');
     assert.equal(typeof json.ffmpegAvailable, 'boolean');
     assert.ok(json.timestamp);
 
@@ -88,8 +88,8 @@ describe('Server REST API Integration Tests', () => {
     assert.equal(json.success, true);
     assert.equal(typeof json.available, 'boolean');
     assert.ok(json.youtube);
-    assert.equal(typeof json.youtube.ytdlpDirect.healthy, 'boolean');
-    assert.equal(json.youtube.ytdlpDirect.configured, true);
+    assert.equal(typeof json.youtube.invidious.healthy, 'boolean');
+    assert.equal(typeof json.youtube.invidious.configured, 'boolean');
   });
 
   test('POST /api/download should reject missing URL with 400', async () => {
@@ -174,5 +174,3 @@ describe('Server REST API Integration Tests', () => {
     assert.ok(json.error.includes('not found'));
   });
 });
-
-

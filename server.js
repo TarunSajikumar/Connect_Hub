@@ -3,6 +3,13 @@
 // Main Express + WebSocket server
 // ============================================================
 
+// Automatically load .env configuration if present
+if (typeof process.loadEnvFile === 'function') {
+  try {
+    process.loadEnvFile();
+  } catch {}
+}
+
 import dns from 'dns';
 
 // DNS Fallback Patch: Fixes ENOTFOUND errors when local ISP DNS blocks/fails to resolve api.telegram.org
@@ -113,9 +120,7 @@ if (process.platform === 'win32') {
         const dirs = fs.readdirSync(packagesDir);
         for (const dirName of dirs) {
           const fullDir = path.join(packagesDir, dirName);
-          if (dirName.toLowerCase().includes('yt-dlp.yt-dlp')) {
-            process.env.PATH = `${fullDir};${process.env.PATH}`;
-          } else if (dirName.toLowerCase().includes('yt-dlp.ffmpeg')) {
+          if (dirName.toLowerCase().includes('yt-dlp.ffmpeg')) {
             try {
               const subdirs = fs.readdirSync(fullDir);
               for (const sub of subdirs) {
@@ -162,101 +167,6 @@ if (!ffmpegAvailable) {
     }
   }
 }
-
-// ─── Deno JS Runtime availability for yt-dlp JS Challenges ────
-let denoAvailable = false;
-let denoCmd = null;
-const localLinuxDeno = path.join(__dirname, 'deno');
-const localWinDeno = path.join(__dirname, 'deno.exe');
-
-if (fs.existsSync(localLinuxDeno)) {
-  try {
-    execSync(`chmod +x "${localLinuxDeno}"`, { stdio: 'ignore' });
-    denoCmd = localLinuxDeno;
-    denoAvailable = true;
-    console.log('  ✅ deno     — Local Linux standalone binary ready');
-  } catch (e) {}
-} else if (process.platform === 'win32' && fs.existsSync(localWinDeno)) {
-  denoCmd = localWinDeno;
-  denoAvailable = true;
-} else {
-  try {
-    execSync('deno --version', { stdio: 'ignore' });
-    denoCmd = 'deno';
-    denoAvailable = true;
-    console.log('  ✅ deno     — System binary ready');
-  } catch (e) {}
-}
-
-// Ensure local workspace binaries are discoverable in PATH
-if (process.platform === 'linux') {
-  process.env.PATH = `${__dirname}:${process.env.PATH}`;
-}
-
-// ─── yt-dlp availability & version check ────────────────────────
-let ytDlpAvailable = false;
-let ytDlpCmd = 'yt-dlp';
-let ytDlpVersion = null;
-
-const localLinuxBin = path.join(__dirname, 'yt-dlp');
-const localWinBin = path.join(__dirname, 'yt-dlp.exe');
-
-// On Linux / Render cloud hosting, ALWAYS download and prioritize the official standalone binary
-if (process.platform === 'linux') {
-  if (!fs.existsSync(localLinuxBin)) {
-    try {
-      console.log('  📥 [Setup] Downloading latest standalone yt-dlp release for Linux cloud hosting…');
-      execSync(`curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o "${localLinuxBin}" && chmod +x "${localLinuxBin}"`, { stdio: 'pipe' });
-    } catch (e) {
-      console.warn('  ⚠️ [Setup] Could not download standalone yt-dlp binary:', e.message);
-    }
-  }
-
-  if (fs.existsSync(localLinuxBin)) {
-    try {
-      execSync(`chmod +x "${localLinuxBin}"`, { stdio: 'ignore' });
-      ytDlpVersion = execSync(`"${localLinuxBin}" --version`, { stdio: 'pipe' }).toString().trim();
-      ytDlpCmd = localLinuxBin;
-      ytDlpAvailable = true;
-      console.log(`  ✅ yt-dlp   — Official latest Linux binary ready (v${ytDlpVersion})`);
-    } catch (e) {}
-  }
-}
-
-// Fallback to system or Windows binary
-if (!ytDlpAvailable) {
-  try {
-    ytDlpVersion = execSync('yt-dlp --version', { stdio: 'pipe' }).toString().trim();
-    ytDlpAvailable = true;
-    ytDlpCmd = 'yt-dlp';
-    console.log(`  ✅ yt-dlp   — System binary ready (v${ytDlpVersion})`);
-  } catch (e) {
-    if (fs.existsSync(localWinBin)) {
-      ytDlpCmd = localWinBin;
-      ytDlpAvailable = true;
-      try {
-        ytDlpVersion = execSync(`"${localWinBin}" --version`, { stdio: 'pipe' }).toString().trim();
-      } catch {}
-    } else if (process.platform === 'win32') {
-      const windowsPaths = [
-        path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
-        path.join(process.env.USERPROFILE || '', 'AppData', 'Local', 'Microsoft', 'WinGet', 'Links', 'yt-dlp.exe'),
-        'C:\\Windows\\System32\\yt-dlp.exe'
-      ];
-      for (const p of windowsPaths) {
-        if (fs.existsSync(p)) {
-          ytDlpCmd = p;
-          ytDlpAvailable = true;
-          try {
-            ytDlpVersion = execSync(`"${p}" --version`, { stdio: 'pipe' }).toString().trim();
-          } catch {}
-          break;
-        }
-      }
-    }
-  }
-}
-
 
 // ─── File Upload (multer) ────────────────────────────────────
 const storage = multer.diskStorage({
@@ -704,7 +614,7 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     environment: process.env.NODE_ENV === 'production' || process.env.RENDER ? 'production' : 'development',
     version: '2.0.0',
-    ytDlpAvailable: !!ytDlpAvailable,
+    mediaPipeline: 'anonymous-provider',
     ffmpegAvailable: !!ffmpegAvailable,
     timestamp: new Date().toISOString()
   });
@@ -849,18 +759,15 @@ app.get('/api/download/file/:filename', (req, res) => {
 // ─── API: AI Audio Caption & Speech-to-Text Synthesizer ────────
 app.post('/api/ai/transcribe-caption', async (req, res) => {
   try {
-    const { transcript, title, style, language, url, filePath } = req.body;
+    const { transcript, title, style, language, filePath } = req.body;
 
     let mediaMeta = { title: title || '', transcript: transcript || '', detectedLanguage: language || 'auto' };
 
-    // If a URL or local filePath was provided, analyze it
-    if (url) {
-      const meta = await AIAudioCaptioner.extractAudioMetadata(url, ytDlpCmd);
-      mediaMeta = { ...mediaMeta, ...meta };
-    } else if (filePath) {
-      const resolved = path.isAbsolute(filePath) ? filePath : path.join(__dirname, filePath);
-      if (fs.existsSync(resolved)) {
-        const meta = await AIAudioCaptioner.extractAudioMetadata(resolved, ytDlpCmd);
+    // Only analyze a file already stored by this app; URLs are not fetched.
+    if (filePath) {
+      const resolved = FileManager.resolveDownloadFile(filePath);
+      if (resolved && fs.existsSync(resolved)) {
+        const meta = await AIAudioCaptioner.extractAudioMetadata(resolved);
         mediaMeta = { ...mediaMeta, ...meta };
       }
     }
@@ -995,13 +902,8 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(54));
   console.log('  ✅ WhatsApp  — OpenWA Gateway (Multi-session / QR / Pairing code)');
   console.log('  ✅ Telegram  — Bot token from @BotFather');
-  if (ytDlpAvailable) {
-    console.log('  ✅ yt-dlp   — Instagram & YouTube downloader');
-  } else {
-    console.log('  ⚠️  yt-dlp  — Not found (downloader disabled)');
-  }
+  console.log('  ✅ Media     — Anonymous provider pipeline (no browser cookies)');
   console.log('='.repeat(54) + '\n');
 });
 
 export { app, httpServer, wss };
-

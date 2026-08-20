@@ -4,11 +4,8 @@
 // ============================================================
 
 import path from 'path';
-import { YtDlpPoProvider } from './providers/ytdlp-po.js';
-import { BgutilYtDlpProvider } from './providers/bgutil-ytdlp.js';
-import { YtDlpDirectProvider } from './providers/ytdlp-direct.js';
+import { InvidiousProvider } from './providers/invidious.js';
 import { CobaltProvider } from './providers/cobalt.js';
-import { InstagramYtDlpProvider } from './providers/instagram-ytdlp.js';
 import { InstagramFallbackProvider } from './providers/instagram-fallback.js';
 import { FileManager } from './file-manager.js';
 import { MediaValidator } from './media-validator.js';
@@ -18,16 +15,13 @@ import { JobQueue, JobStates } from './job-queue.js';
 export class ProviderManager {
   constructor() {
     this.providers = {
-      'ytdlp-po': new YtDlpPoProvider(),
-      'bgutil': new BgutilYtDlpProvider(),
-      'ytdlp-direct': new YtDlpDirectProvider(),
+      invidious: new InvidiousProvider(),
       'cobalt': new CobaltProvider(),
-      'instagram-ytdlp': new InstagramYtDlpProvider(),
       'instagram-fallback': new InstagramFallbackProvider()
     };
 
-    this.youtubePipeline = ['ytdlp-po', 'bgutil', 'ytdlp-direct', 'cobalt'];
-    this.instagramPipeline = ['instagram-ytdlp', 'instagram-fallback', 'cobalt'];
+    this.youtubePipeline = ['invidious', 'cobalt'];
+    this.instagramPipeline = ['instagram-fallback', 'cobalt'];
 
     // Purge orphaned files on startup
     FileManager.purgeOrphanedFiles();
@@ -40,14 +34,10 @@ export class ProviderManager {
   }
 
   async runStartupHealthChecks() {
-    const ytDirect = await this.providers['ytdlp-direct'].checkHealth();
-    const ytPo = await this.providers['ytdlp-po'].checkHealth();
-    const bgutil = await this.providers['bgutil'].checkHealth();
+    const invidious = await this.providers.invidious.checkHealth();
     const cobalt = await this.providers['cobalt'].checkHealth();
 
-    console.log(`[PROVIDER] yt-dlp direct ${ytDirect.available ? 'READY' : 'UNAVAILABLE'}`);
-    console.log(`[PROVIDER] yt-dlp PO ${ytPo.available ? 'READY' : 'UNAVAILABLE' + (ytPo.reason ? ' (' + ytPo.reason + ')' : '')}`);
-    console.log(`[PROVIDER] bgutil ${bgutil.available ? 'READY' : 'UNAVAILABLE' + (bgutil.reason ? ' (' + bgutil.reason + ')' : '')}`);
+    console.log(`[PROVIDER] Invidious ${invidious.available ? 'READY' : 'UNAVAILABLE' + (invidious.reason ? ' (' + invidious.reason + ')' : '')}`);
     console.log(`[PROVIDER] Cobalt ${cobalt.available ? 'READY' : 'UNAVAILABLE' + (cobalt.reason ? ' (' + cobalt.reason + ')' : '')}`);
   }
 
@@ -56,38 +46,65 @@ export class ProviderManager {
    */
   static normalizeUrl(rawUrl) {
     if (!rawUrl || typeof rawUrl !== 'string') return null;
-    const clean = rawUrl.trim();
+    const clean = ProviderManager.extractUrl(rawUrl);
+    if (!clean) return null;
+
+    let parsed;
+    try {
+      parsed = new URL(clean);
+    } catch {
+      return null;
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    const isYouTube = host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com' || host === 'youtu.be';
+    const isInstagram = host === 'instagram.com' || host.endsWith('.instagram.com');
 
     // 1. YouTube normalization
-    const ytShorts = clean.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/i);
+    const ytShorts = isYouTube && parsed.pathname.match(/^\/shorts\/([a-zA-Z0-9_-]{11})(?:\/|$)/i);
     if (ytShorts) return { url: `https://www.youtube.com/watch?v=${ytShorts[1]}`, videoId: ytShorts[1], platform: 'youtube', isShorts: true };
 
-    const ytMusic = clean.match(/music\.youtube\.com\/watch\?(?:.*&)?v=([a-zA-Z0-9_-]{11})/i);
-    if (ytMusic) return { url: `https://music.youtube.com/watch?v=${ytMusic[1]}`, videoId: ytMusic[1], platform: 'youtube', isMusic: true };
+    const ytMusic = host === 'music.youtube.com' && parsed.pathname === '/watch' && parsed.searchParams.get('v')?.match(/^[a-zA-Z0-9_-]{11}$/);
+    if (ytMusic) return { url: `https://music.youtube.com/watch?v=${ytMusic[0]}`, videoId: ytMusic[0], platform: 'youtube', isMusic: true };
 
-    const ytShortlink = clean.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/i);
+    const ytShortlink = host === 'youtu.be' && parsed.pathname.match(/^\/([a-zA-Z0-9_-]{11})(?:\/|$)/i);
     if (ytShortlink) return { url: `https://www.youtube.com/watch?v=${ytShortlink[1]}`, videoId: ytShortlink[1], platform: 'youtube', isShorts: false };
 
-    const ytWatch = clean.match(/youtube\.com\/watch\?(?:.*&)?v=([a-zA-Z0-9_-]{11})/i);
-    if (ytWatch) return { url: `https://www.youtube.com/watch?v=${ytWatch[1]}`, videoId: ytWatch[1], platform: 'youtube', isShorts: false };
+    const ytWatchId = isYouTube && parsed.pathname === '/watch' ? parsed.searchParams.get('v') : null;
+    const ytWatch = ytWatchId?.match(/^[a-zA-Z0-9_-]{11}$/);
+    if (ytWatch) return { url: `https://www.youtube.com/watch?v=${ytWatch[0]}`, videoId: ytWatch[0], platform: 'youtube', isShorts: false };
 
-    const ytEmbedOrLive = clean.match(/youtube\.com\/(?:embed|live)\/([a-zA-Z0-9_-]{11})/i);
+    const ytEmbedOrLive = isYouTube && parsed.pathname.match(/^\/(?:embed|live)\/([a-zA-Z0-9_-]{11})(?:\/|$)/i);
     if (ytEmbedOrLive) return { url: `https://www.youtube.com/watch?v=${ytEmbedOrLive[1]}`, videoId: ytEmbedOrLive[1], platform: 'youtube', isShorts: false };
 
     // 2. Instagram normalization
-    if (/instagram\.com\/(?:reel|reels|p|stories|tv)\/([a-zA-Z0-9_-]+)/i.test(clean)) {
-      return { url: clean.split('?')[0], platform: 'instagram' };
+    if (isInstagram && /^\/(?:reel|reels|p|stories|tv)\/([a-zA-Z0-9_-]+)/i.test(parsed.pathname)) {
+      return { url: `${parsed.origin}${parsed.pathname}`, platform: 'instagram' };
     }
 
-    if (/instagram\.com/i.test(clean)) {
+    if (isInstagram) {
       return { url: clean, platform: 'instagram' };
     }
 
-    if (/youtube\.com|youtu\.be/i.test(clean)) {
+    if (isYouTube) {
       return { url: clean, platform: 'youtube' };
     }
 
     return null;
+  }
+
+  /**
+   * Accept a normal URL as well as the Markdown link format copied from chats.
+   * For example, `[short](https://youtube.com/shorts/...)` becomes the URL.
+   */
+  static extractUrl(rawUrl) {
+    const value = rawUrl.trim().replace(/&amp;/gi, '&');
+    const markdown = value.match(/^\s*\[[^\]]*\]\(\s*(https?:\/\/[^\s)]+)\s*\)\s*$/i);
+    if (markdown) return markdown[1];
+
+    const bareUrl = value.match(/https?:\/\/[^\s<>"']+/i);
+    return bareUrl ? bareUrl[0].replace(/[.,;:!?]+$/, '') : null;
   }
 
   /**
@@ -108,6 +125,7 @@ export class ProviderManager {
     console.log(`[DOWNLOAD] job=${job.jobId} platform=${platform} url=${url}`);
 
     let lastError = null;
+    let hasAvailableProvider = false;
 
     for (const providerName of pipelineNames) {
       const provider = this.providers[providerName];
@@ -131,13 +149,17 @@ export class ProviderManager {
         continue;
       }
 
+      hasAvailableProvider = true;
+
       console.log(`[PROVIDER] ${providerName} START`);
       const providerStartTime = Date.now();
 
       try {
         const downloadOptions = {
           ...job.options,
-          audioOnly: job.options.audioOnly || norm.isMusic || false
+          audioOnly: job.options.audioOnly || norm.isMusic || false,
+          isShorts: Boolean(norm.isShorts),
+          videoId: norm.videoId || null
         };
 
         const result = await provider.download({
@@ -201,6 +223,15 @@ export class ProviderManager {
 
     // All providers exhausted
     jobCtx.cleanup();
+    if (!hasAvailableProvider) {
+      const finalErr = new Error(
+        platform === 'youtube'
+          ? 'No anonymous YouTube provider is configured. Add INVIDIOUS_API_URL to the server environment.'
+          : 'No public media provider is currently available.'
+      );
+      finalErr.code = ErrorCodes.PROVIDER_UNAVAILABLE;
+      throw finalErr;
+    }
     const finalClassified = classifyError(lastError, platform);
     console.log(`[DOWNLOAD] job=${job.jobId} platform=${platform} ALL_PROVIDERS_FAILED finalCode=${finalClassified.code}`);
 
@@ -244,29 +275,17 @@ export class ProviderManager {
    * Return structured provider health status for GET /api/downloader/status
    */
   async getStatus() {
-    const ytPoHealth = await this.providers['ytdlp-po'].checkHealth();
-    const bgutilHealth = await this.providers['bgutil'].checkHealth();
-    const ytDirectHealth = await this.providers['ytdlp-direct'].checkHealth();
+    const invidiousHealth = await this.providers.invidious.checkHealth();
     const cobaltHealth = await this.providers['cobalt'].checkHealth();
-    const igYtHealth = await this.providers['instagram-ytdlp'].checkHealth();
     const igFbHealth = await this.providers['instagram-fallback'].checkHealth();
 
     return {
       available: true,
       youtube: {
-        ytdlpPo: {
-          configured: Boolean(this.providers['ytdlp-po'].getProviderEndpoint()),
-          healthy: ytPoHealth.available,
-          reason: ytPoHealth.reason || null
-        },
-        bgutil: {
-          configured: Boolean(this.providers['bgutil'].getEndpoint()),
-          healthy: bgutilHealth.available,
-          reason: bgutilHealth.reason || null
-        },
-        ytdlpDirect: {
-          configured: true,
-          healthy: ytDirectHealth.available
+        invidious: {
+          configured: Boolean(this.providers.invidious.getEndpoint()),
+          healthy: invidiousHealth.available,
+          reason: invidiousHealth.reason || null
         },
         cobalt: {
           configured: Boolean(this.providers['cobalt'].getEndpoint()),
@@ -275,10 +294,6 @@ export class ProviderManager {
         }
       },
       instagram: {
-        ytdlp: {
-          configured: true,
-          healthy: igYtHealth.available
-        },
         fallback: {
           configured: true,
           healthy: igFbHealth.available

@@ -514,13 +514,13 @@ body {
 .dl-tag-yt { background: rgba(255,0,0,.15); border: 1px solid rgba(255,0,0,.35); color: #ff6b6b; }
 .dl-tag-ig { background: rgba(192,132,252,.15); border: 1px solid rgba(192,132,252,.35); color: #c084fc; }
 
-.ytdlp-notice {
+.download-engine-notice {
   display: flex; align-items: flex-start; gap: .7rem;
   padding: .75rem 1rem; background: rgba(251,191,36,.08);
   border: 1px solid rgba(251,191,36,.25); border-radius: var(--radius-sm);
   color: var(--amber); font-size: .8rem;
 }
-.ytdlp-notice code { font-family: monospace; background: rgba(251,191,36,.15); padding: .1rem .35rem; border-radius: 4px; }
+.download-engine-notice code { font-family: monospace; background: rgba(251,191,36,.15); padding: .1rem .35rem; border-radius: 4px; }
 
 .dl-input-row { display: flex; gap: .65rem; align-items: stretch; flex-wrap: wrap; }
 .dl-url-wrap { flex: 1 1 240px; min-width: 0; position: relative; display: flex; align-items: center; }
@@ -2161,5 +2161,4 @@ body {
   background: #059669;
   transform: translateY(-1px);
 }
-
 

@@ -196,7 +196,6 @@ class AudioCaptionEngine {
           title: transcript,
           style: this.selectedStyle,
           language: lang,
-          url: window.lastDownloadedVideoUrl || null,
           filePath: window.lastDownloadedFilePath || null
         })
       });

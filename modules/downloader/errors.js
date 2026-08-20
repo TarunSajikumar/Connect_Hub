@@ -21,7 +21,7 @@ export const ErrorCodes = {
 
 const SafeUserMessages = {
   [ErrorCodes.YOUTUBE_UNAVAILABLE]: 'This YouTube video is unavailable, private, or has been removed.',
-  [ErrorCodes.YOUTUBE_ACCESS_RESTRICTED]: 'This YouTube video is restricted or unavailable in the current region.',
+  [ErrorCodes.YOUTUBE_ACCESS_RESTRICTED]: 'YouTube requires sign-in or rejects anonymous access for this video. This app will not use browser cookies.',
   [ErrorCodes.YOUTUBE_PROVIDER_FAILED]: 'Unable to retrieve this YouTube media from the available download engines.',
   [ErrorCodes.INSTAGRAM_UNAVAILABLE]: 'This Instagram post/reel is private, unavailable, or has been removed.',
   [ErrorCodes.INSTAGRAM_PROVIDER_FAILED]: 'Unable to retrieve this Instagram media from the available download engines.',
@@ -61,7 +61,7 @@ export function classifyError(err, platform = 'unknown') {
   }
 
   // 2. Region / access restriction
-  if (/geo-blocked|not available in your country|age-restricted|members-only/i.test(msg)) {
+  if (/geo-blocked|not available in your country|age-restricted|members-only|sign in to confirm|login required|http error 403|forbidden/i.test(msg)) {
     return {
       code: ErrorCodes.YOUTUBE_ACCESS_RESTRICTED,
       message: SafeUserMessages[ErrorCodes.YOUTUBE_ACCESS_RESTRICTED]

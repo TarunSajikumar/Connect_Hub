@@ -30,6 +30,13 @@ describe('Media Downloader — Provider Architecture Tests', () => {
       assert.equal(norm.url, 'https://www.youtube.com/watch?v=oup55hcy9ps');
     });
 
+    it('should unwrap a Markdown link copied from a chat', () => {
+      const norm = ProviderManager.normalizeUrl('[https://youtube.com/shorts/oup55hcy9ps?si=H9ohaO3hLzSQqVlX](https://youtube.com/shorts/oup55hcy9ps?si=H9ohaO3hLzSQqVlX)');
+      assert.equal(norm.platform, 'youtube');
+      assert.equal(norm.videoId, 'oup55hcy9ps');
+      assert.equal(norm.isShorts, true);
+    });
+
     it('should normalize YouTube Music URLs without losing videoId', () => {
       const norm = ProviderManager.normalizeUrl('https://music.youtube.com/watch?v=dQw4w9WgXcQ&feature=share');
       assert.equal(norm.platform, 'youtube');
@@ -62,6 +69,7 @@ describe('Media Downloader — Provider Architecture Tests', () => {
       assert.equal(ProviderManager.normalizeUrl(''), null);
       assert.equal(ProviderManager.normalizeUrl('https://example.com/video'), null);
       assert.equal(ProviderManager.normalizeUrl('not-a-url'), null);
+      assert.equal(ProviderManager.normalizeUrl('https://notyoutube.com/shorts/oup55hcy9ps'), null);
     });
   });
 
@@ -152,9 +160,9 @@ describe('Media Downloader — Provider Architecture Tests', () => {
       assert.equal(status.available, true);
       assert.ok(status.youtube);
       assert.ok(status.instagram);
-      assert.equal(typeof status.youtube.ytdlpDirect.healthy, 'boolean');
-      assert.equal(status.youtube.ytdlpDirect.configured, true);
-      assert.equal(typeof status.instagram.ytdlp.healthy, 'boolean');
+      assert.equal(typeof status.youtube.invidious.healthy, 'boolean');
+      assert.equal(typeof status.youtube.invidious.configured, 'boolean');
+      assert.equal(typeof status.instagram.fallback.healthy, 'boolean');
     });
 
     it('should return safe structured diagnostic object without raw stderr', async () => {

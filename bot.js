@@ -3,6 +3,13 @@
 // Run with: node bot.js
 // ============================================================
 
+// Automatically load .env configuration if present
+if (typeof process.loadEnvFile === 'function') {
+  try {
+    process.loadEnvFile();
+  } catch {}
+}
+
 import TelegramBot from 'node-telegram-bot-api';
 
 // Suppress NTBA warning logs

@@ -1,26 +1,18 @@
 {
-  "name": "social-hub",
-  "version": "2.0.0",
+  "name": "media-downloader",
+  "version": "1.0.0",
+  "description": "Cookie-free YouTube and Instagram media downloader web application",
+  "main": "server.js",
   "type": "module",
-  "description": "Cross-platform social publishing — WhatsApp & Telegram (no API key required)",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "build": "node -e \"console.log('Build complete')\"",
-    "bot": "node bot.js",
-    "tunnel": "node scripts/tunnel.mjs",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/downloader.test.js"
   },
   "dependencies": {
-    "@hapi/boom": "^10.0.1",
     "@selxyzz/instagram-dl": "^1.0.5",
-    "@whiskeysockets/baileys": "^6.7.18",
+    "axios": "^1.7.9",
     "cors": "^2.8.5",
-    "express": "^4.21.2",
-    "multer": "^1.4.5-lts.1",
-    "node-telegram-bot-api": "^0.66.0",
-    "pino": "^9.6.0",
-    "qrcode": "^1.5.4",
-    "ws": "^8.18.0"
+    "express": "^4.21.2"
   }
 }
